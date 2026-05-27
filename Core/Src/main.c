@@ -56,6 +56,9 @@ extern uint8_t ibus_rx_cplt_flag;
 extern volatile uint8_t mpu_data_ready;
 
 extern uint8_t tim3_1000ms_flag;
+extern uint8_t tim3_100ms_flag;
+
+extern uint8_t Rec_Data[6];
 
 unsigned char failsafe_flag = 0;
 /* USER CODE END PV */
@@ -73,6 +76,7 @@ static void MX_ADC1_Init(void);
 /* USER CODE BEGIN PFP */
 int Is_iBus_Received(void);
 void Motor_Control(unsigned short left_speed, unsigned short right_speed);
+void I2C1_Clear_Bus(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -116,6 +120,8 @@ int main(void)
   MX_USART1_UART_Init();
   MX_USART2_UART_Init();
   MX_TIM1_Init();
+
+  I2C1_Clear_Bus();
   MX_I2C1_Init();
   MX_TIM3_Init();
   MX_ADC1_Init();
@@ -139,7 +145,7 @@ int main(void)
 
   MPU6050_Init();
 
-  MPU6050_Read_All_IT();
+//  MPU6050_Read_All_IT();
 
   LL_GPIO_ResetOutputPin(GPIOC, RED_LED_Pin);
 
@@ -156,19 +162,21 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  uint16_t tempVolt = adcVal & 0xFFF;
 
-	  batVolt = tempVolt * 0.002417f;
 
-	  tempVolt = batVolt;
-
-	  uint8_t high = (tempVolt >> 8) & 0x0F;
-	  uint8_t low = tempVolt & 0xFF;
-
-	  while(!LL_USART_IsActiveFlag_TXE(USART2));
-	  LL_USART_TransmitData8(USART2, high);
-	  while(!LL_USART_IsActiveFlag_TXE(USART2));
-	  LL_USART_TransmitData8(USART2, low);
+//	  uint16_t tempVolt = adcVal & 0xFFF;
+//
+//	  batVolt = tempVolt * 0.002417f;
+//
+//	  tempVolt = batVolt;
+//
+//	  uint8_t high = (tempVolt >> 8) & 0x0F;
+//	  uint8_t low = tempVolt & 0xFF;
+//
+//	  while(!LL_USART_IsActiveFlag_TXE(USART2));
+//	  LL_USART_TransmitData8(USART2, high);
+//	  while(!LL_USART_IsActiveFlag_TXE(USART2));
+//	  LL_USART_TransmitData8(USART2, low);
 
 	  if(failsafe_flag == 0)
 	  {
@@ -221,31 +229,37 @@ int main(void)
 		  iBus_rx_cnt = 0;
 	  }
 
+	  if(tim3_100ms_flag == 1)
+	  {
+		  tim3_100ms_flag = 0;
+		  MPU6050_Read_Accel();
+	  }
+
 //	  Motor_Control(iBus.LV, iBus.RH);
 
-	  if (mpu_data_ready == 1)
-	  {
-		mpu_data_ready = 0; // 플래그 초기화
-
-		MPU6050_Parse_Data();
-
-		// 버퍼에 쌓인 14바이트를 가속도/자이로 변수(Ax, Gx 등)로 파싱
+//	  if (mpu_data_ready == 1)
+//	  {
+//		mpu_data_ready = 0; // 플래그 초기화
+//
+//		MPU6050_Parse_Data();
+//
+//		// 버퍼에 쌓인 14바이트를 가속도/자이로 변수(Ax, Gx 등)로 파싱
 //		uint8_t high = (Gyro_X_RAW >> 8) & 0xFF;
 //		uint8_t low  = Gyro_X_RAW & 0xFF;
-
+//
 //		while(!LL_USART_IsActiveFlag_TXE(USART2));
 //		LL_USART_TransmitData8(USART2, high);
 //		while(!LL_USART_IsActiveFlag_TXE(USART2));
 //		LL_USART_TransmitData8(USART2, low);
-
-		HAL_Delay(20);
-
-		// [확인용] 디버거 Live Expressions 창에서 Ax, Ay, Gx, Gy 값이
-		// 센서를 기울일 때마다 실시간으로 변하는지 확인하면 끝!
-
-		// 중요: 다음 싸이클을 위해 인터럽트 수신을 다시 예약합니다.
-		MPU6050_Read_All_IT();
-	  }
+//
+//		HAL_Delay(20);
+//
+//		// [확인용] 디버거 Live Expressions 창에서 Ax, Ay, Gx, Gy 값이
+//		// 센서를 기울일 때마다 실시간으로 변하는지 확인하면 끝!
+//
+//		// 중요: 다음 싸이클을 위해 인터럽트 수신을 다시 예약합니다.
+//		MPU6050_Read_All_IT();
+//	  }
 //
 //	  HAL_Delay(1000); // 주행 제어 주기 (10ms)
 
@@ -368,7 +382,7 @@ static void MX_I2C1_Init(void)
 
   /* USER CODE END I2C1_Init 1 */
   hi2c1.Instance = I2C1;
-  hi2c1.Init.ClockSpeed = 400000;
+  hi2c1.Init.ClockSpeed = 100000;
   hi2c1.Init.DutyCycle = I2C_DUTYCYCLE_2;
   hi2c1.Init.OwnAddress1 = 0;
   hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
@@ -680,15 +694,50 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-void HAL_I2C_MemRxCpltCallback(I2C_HandleTypeDef *hi2c)
-{
-  if (hi2c->Instance == I2C1)
-  {
-    mpu_data_ready = 1; // 메인 루프에게 데이터 왔다고 알림
+//void HAL_I2C_MemRxCpltCallback(I2C_HandleTypeDef *hi2c)
+//{
+//  if (hi2c->Instance == I2C1)
+//  {
+//    mpu_data_ready = 1; // 메인 루프에게 데이터 왔다고 알림
+//
+////    LL_GPIO_SetOutputPin(GPIOC, GREEN_LED_Pin);
+//  }
+//
+//}
 
-//    LL_GPIO_SetOutputPin(GPIOC, GREEN_LED_Pin);
+void I2C1_Clear_Bus(void)
+{
+  // 1. SCL(PB8), SDA(PB7) 핀을 임시로 일반 GPIO 출력 모드로 설정
+  LL_GPIO_SetPinMode(GPIOB, LL_GPIO_PIN_8, LL_GPIO_MODE_OUTPUT);
+  LL_GPIO_SetPinMode(GPIOB, LL_GPIO_PIN_7, LL_GPIO_MODE_OUTPUT);
+
+  LL_GPIO_SetPinOutputType(GPIOB, LL_GPIO_PIN_8, LL_GPIO_OUTPUT_PUSHPULL);
+  LL_GPIO_SetPinOutputType(GPIOB, LL_GPIO_PIN_7, LL_GPIO_OUTPUT_PUSHPULL);
+
+  // SDA를 High로 두고 시작
+  LL_GPIO_SetOutputPin(GPIOB, LL_GPIO_PIN_7);
+
+  // 2. SCL 핀을 9번 흔들어서 슬레이브가 잡고 있는 SDA 라인을 해제하게 만듦
+  for (int i = 0; i < 9; i++)
+  {
+    LL_GPIO_ResetOutputPin(GPIOB, LL_GPIO_PIN_8); // SCL Low
+    HAL_Delay(1); // 아주 잠깐 대기
+    LL_GPIO_SetOutputPin(GPIOB, LL_GPIO_PIN_8);   // SCL High
+    HAL_Delay(1);
+
+    // 만약 슬레이브가 선을 놓아서 SDA가 High로 복구되었다면 조기 종료 가능
+    // (선택 사항이지만 안전을 위해 9번 다 흔드는 것이 확실합니다)
   }
 
+  // 3. I2C 통신이 끝났음을 알리는 STOP 시퀀스를 수동으로 생성
+  LL_GPIO_ResetOutputPin(GPIOB, LL_GPIO_PIN_7); // SDA Low
+  HAL_Delay(1);
+  LL_GPIO_SetOutputPin(GPIOB, LL_GPIO_PIN_8);   // SCL High 상태에서
+  HAL_Delay(1);
+  LL_GPIO_SetOutputPin(GPIOB, LL_GPIO_PIN_7);   // SDA를 High로 올림 (STOP 조건)
+  HAL_Delay(1);
+
+  // 이제 MPU6050과의 꼬인 연결이 강제로 풀렸습니다!
 }
 
 int Is_iBus_Received(void)

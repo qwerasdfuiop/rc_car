@@ -14,8 +14,8 @@
 extern I2C_HandleTypeDef hi2c1;
 
 void MPU6050_Init(void);
-void MPU6050_Read_All_IT(void);
-void MPU6050_Parse_Data(void);
+void MPU6050_Read_Accel(void);
+void MPU6050_Read_Gyro(void);
 
 
 extern int16_t Accel_X_RAW, Accel_Y_RAW, Accel_Z_RAW;

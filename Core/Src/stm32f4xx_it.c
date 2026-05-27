@@ -51,6 +51,7 @@ uint8_t ibus_rx_buf[32];
 uint8_t ibus_rx_cplt_flag = 0;
 
 uint8_t tim3_1000ms_flag = 0;
+uint8_t tim3_100ms_flag = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -65,7 +66,6 @@ uint8_t tim3_1000ms_flag = 0;
 
 /* External variables --------------------------------------------------------*/
 extern DMA_HandleTypeDef hdma_adc1;
-extern I2C_HandleTypeDef hi2c1;
 /* USER CODE BEGIN EV */
 
 /* USER CODE END EV */
@@ -215,6 +215,7 @@ void TIM3_IRQHandler(void)
 {
   /* USER CODE BEGIN TIM3_IRQn 0 */
 	static unsigned short tim3_1000ms_count = 0;
+	static unsigned short tim3_100ms_count = 0;
 	if(LL_TIM_IsActiveFlag_UPDATE(TIM3))
 	{
 		LL_TIM_ClearFlag_UPDATE(TIM3);
@@ -225,40 +226,20 @@ void TIM3_IRQHandler(void)
 			tim3_1000ms_count = 0;
 			tim3_1000ms_flag = 1;
 		}
+
+		tim3_100ms_count++;
+		if(tim3_100ms_count == 100)
+		{
+			tim3_100ms_count = 0;
+			tim3_100ms_flag = 1;
+		}
+
 	}
 
   /* USER CODE END TIM3_IRQn 0 */
   /* USER CODE BEGIN TIM3_IRQn 1 */
 
   /* USER CODE END TIM3_IRQn 1 */
-}
-
-/**
-  * @brief This function handles I2C1 event interrupt.
-  */
-void I2C1_EV_IRQHandler(void)
-{
-  /* USER CODE BEGIN I2C1_EV_IRQn 0 */
-
-  /* USER CODE END I2C1_EV_IRQn 0 */
-  HAL_I2C_EV_IRQHandler(&hi2c1);
-  /* USER CODE BEGIN I2C1_EV_IRQn 1 */
-
-  /* USER CODE END I2C1_EV_IRQn 1 */
-}
-
-/**
-  * @brief This function handles I2C1 error interrupt.
-  */
-void I2C1_ER_IRQHandler(void)
-{
-  /* USER CODE BEGIN I2C1_ER_IRQn 0 */
-
-  /* USER CODE END I2C1_ER_IRQn 0 */
-  HAL_I2C_ER_IRQHandler(&hi2c1);
-  /* USER CODE BEGIN I2C1_ER_IRQn 1 */
-
-  /* USER CODE END I2C1_ER_IRQn 1 */
 }
 
 /**

@@ -23,13 +23,19 @@ int16_t Gyro_X_RAW, Gyro_Y_RAW, Gyro_Z_RAW = 0;
 float Ax, Ay, Az = 0;
 float Gx, Gy, Gz = 0;
 
-uint8_t MPU_Rx_Buffer[14]; // 가속도~자이로까지 통째로 담을 버퍼
-volatile uint8_t mpu_data_ready = 0; // 데이터 수신 완료 플래그
-
+//uint8_t MPU_Rx_Buffer[14]; // 가속도~자이로까지 통째로 담을 버퍼
+uint8_t Rec_Data[6];
 
 void MPU6050_Init (void)
 {
+
   uint8_t check, Data;
+
+  HAL_StatusTypeDef status;
+
+  status = HAL_I2C_Mem_Read (&hi2c1, MPU6050_ADDR, WHO_AM_I_REG, 1, &check, 1, 1000);
+
+
 
   //check device ID WHO_AM_I
   HAL_I2C_Mem_Read (&hi2c1, MPU6050_ADDR, WHO_AM_I_REG, 1, &check, 1, 1000);
@@ -59,29 +65,69 @@ void MPU6050_Init (void)
   }
 }
 
-void MPU6050_Read_All_IT(void)
+//void MPU6050_Read_All_IT(void)
+//{
+//  // ACCEL_XOUT_H_REG(0x3B)부터 자이로 끝까지 14바이트를 비동기로 읽어옵니다.
+//  HAL_I2C_Mem_Read_IT(&hi2c1, MPU6050_ADDR, ACCEL_XOUT_H_REG, 1, MPU_Rx_Buffer, 14);
+//}
+
+void MPU6050_Read_Accel (void)
 {
-  // ACCEL_XOUT_H_REG(0x3B)부터 자이로 끝까지 14바이트를 비동기로 읽어옵니다.
-  HAL_I2C_Mem_Read_IT(&hi2c1, MPU6050_ADDR, ACCEL_XOUT_H_REG, 1, MPU_Rx_Buffer, 14);
+
+  // Read 6 BYTES of data starting from ACCEL_XOUT_H register
+  HAL_I2C_Mem_Read(&hi2c1, MPU6050_ADDR, ACCEL_XOUT_H_REG, 1, Rec_Data, 6, 1000);
+
+  Accel_X_RAW = (int16_t)(Rec_Data[0] << 8 | Rec_Data[1]);
+  Accel_Y_RAW = (int16_t)(Rec_Data[2] << 8 | Rec_Data[3]);
+  Accel_Z_RAW = (int16_t)(Rec_Data[4] << 8 | Rec_Data[5]);
+
+  /*** To convert the RAW values into acceleration in 'g'
+   * we have to divide according to the Full scale value set in FS_SEL
+   * I have configured FS_SEL = 0, so I am dividing by 16384.0
+   * for more details check ACCEL_CONFIG Register              ****/
+
+  Ax = Accel_X_RAW/16384.0;
+  Ay = Accel_Y_RAW/16384.0;
+  Az = Accel_Z_RAW/16384.0;
 }
 
-void MPU6050_Parse_Data(void)
+void MPU6050_Read_Gyro (void)
 {
-  // 1. 가속도 RAW 데이터 복원 및 변환
-  Accel_X_RAW = (int16_t)(MPU_Rx_Buffer[0] << 8 | MPU_Rx_Buffer[1]);
-  Accel_Y_RAW = (int16_t)(MPU_Rx_Buffer[2] << 8 | MPU_Rx_Buffer[3]);
-  Accel_Z_RAW = (int16_t)(MPU_Rx_Buffer[4] << 8 | MPU_Rx_Buffer[5]);
-  Ax = Accel_X_RAW / 16384.0;
-  Ay = Accel_Y_RAW / 16384.0;
-  Az = Accel_Z_RAW / 16384.0;
 
-  // [참고] MPU_Rx_Buffer[6], [7]은 온도 데이터(TEMP_OUT)입니다. 필요 없으면 건너뜁니다.
+  // Read 6 BYTES of data starting from GYRO_XOUT_H register
+  HAL_I2C_Mem_Read(&hi2c1, MPU6050_ADDR, GYRO_XOUT_H_REG, 1, Rec_Data, 6, 1000);
 
-  // 2. 자이로 RAW 데이터 복원 및 변환
-  Gyro_X_RAW = (int16_t)(MPU_Rx_Buffer[8] << 8 | MPU_Rx_Buffer[9]);
-  Gyro_Y_RAW = (int16_t)(MPU_Rx_Buffer[10] << 8 | MPU_Rx_Buffer[11]);
-  Gyro_Z_RAW = (int16_t)(MPU_Rx_Buffer[12] << 8 | MPU_Rx_Buffer[13]);
+  Gyro_X_RAW = (int16_t)((Rec_Data[0] << 8) | Rec_Data [1]);
+  Gyro_Y_RAW = (int16_t)((Rec_Data[2] << 8) | Rec_Data [3]);
+  Gyro_Z_RAW = (int16_t)((Rec_Data[4] << 8) | Rec_Data [5]);
+
+  /*** To convert the RAW values into dps (°/s)
+   * we have to divide according to the Full Scale value set in FS_SEL.
+   * I have configured FS_SEL = 0, so I am dividing by 131.0
+   * for more details check GYRO_CONFIG Register             ****/
+
   Gx = Gyro_X_RAW / 131.0;
   Gy = Gyro_Y_RAW / 131.0;
   Gz = Gyro_Z_RAW / 131.0;
 }
+
+//void MPU6050_Parse_Data(void)
+//{
+//  // 1. 가속도 RAW 데이터 복원 및 변환
+//  Accel_X_RAW = (int16_t)(MPU_Rx_Buffer[0] << 8 | MPU_Rx_Buffer[1]);
+//  Accel_Y_RAW = (int16_t)(MPU_Rx_Buffer[2] << 8 | MPU_Rx_Buffer[3]);
+//  Accel_Z_RAW = (int16_t)(MPU_Rx_Buffer[4] << 8 | MPU_Rx_Buffer[5]);
+//  Ax = Accel_X_RAW / 16384.0;
+//  Ay = Accel_Y_RAW / 16384.0;
+//  Az = Accel_Z_RAW / 16384.0;
+//
+//  // [참고] MPU_Rx_Buffer[6], [7]은 온도 데이터(TEMP_OUT)입니다. 필요 없으면 건너뜁니다.
+//
+//  // 2. 자이로 RAW 데이터 복원 및 변환
+//  Gyro_X_RAW = (int16_t)(MPU_Rx_Buffer[8] << 8 | MPU_Rx_Buffer[9]);
+//  Gyro_Y_RAW = (int16_t)(MPU_Rx_Buffer[10] << 8 | MPU_Rx_Buffer[11]);
+//  Gyro_Z_RAW = (int16_t)(MPU_Rx_Buffer[12] << 8 | MPU_Rx_Buffer[13]);
+//  Gx = Gyro_X_RAW / 131.0;
+//  Gy = Gyro_Y_RAW / 131.0;
+//  Gz = Gyro_Z_RAW / 131.0;
+//}

@@ -14,8 +14,6 @@
 ../Core/Src/stm32f4xx_it.c:180:6:PendSV_Handler	4	static
 ../Core/Src/stm32f4xx_it.c:193:6:SysTick_Handler	8	static
 ../Core/Src/stm32f4xx_it.c:214:6:TIM3_IRQHandler	8	static
-../Core/Src/stm32f4xx_it.c:239:6:I2C1_EV_IRQHandler	8	static
-../Core/Src/stm32f4xx_it.c:253:6:I2C1_ER_IRQHandler	8	static
-../Core/Src/stm32f4xx_it.c:267:6:USART1_IRQHandler	8	static
-../Core/Src/stm32f4xx_it.c:316:6:USART2_IRQHandler	8	static
-../Core/Src/stm32f4xx_it.c:335:6:DMA2_Stream0_IRQHandler	8	static
+../Core/Src/stm32f4xx_it.c:248:6:USART1_IRQHandler	8	static
+../Core/Src/stm32f4xx_it.c:297:6:USART2_IRQHandler	8	static
+../Core/Src/stm32f4xx_it.c:316:6:DMA2_Stream0_IRQHandler	8	static
