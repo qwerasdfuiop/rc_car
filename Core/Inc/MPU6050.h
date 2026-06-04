@@ -22,6 +22,5 @@ extern int16_t Accel_X_RAW, Accel_Y_RAW, Accel_Z_RAW;
 extern int16_t Gyro_X_RAW, Gyro_Y_RAW, Gyro_Z_RAW;
 extern float Ax, Ay, Az;
 extern float Gx, Gy, Gz;
-extern volatile uint8_t mpu_data_ready;
 
 #endif /* INC_MPU6050_H_ */

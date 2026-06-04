@@ -31,14 +31,15 @@ extern "C" {
 #include "stm32f4xx_ll_tim.h"
 #include "stm32f4xx_ll_usart.h"
 #include "stm32f4xx_ll_rcc.h"
-#include "stm32f4xx_ll_system.h"
-#include "stm32f4xx_ll_gpio.h"
-#include "stm32f4xx_ll_exti.h"
 #include "stm32f4xx_ll_bus.h"
 #include "stm32f4xx_ll_cortex.h"
+#include "stm32f4xx_ll_system.h"
 #include "stm32f4xx_ll_utils.h"
 #include "stm32f4xx_ll_pwr.h"
+#include "stm32f4xx_ll_gpio.h"
 #include "stm32f4xx_ll_dma.h"
+
+#include "stm32f4xx_ll_exti.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -68,25 +69,31 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define RED_LED_Pin LL_GPIO_PIN_0
+#define RED_LED_Pin GPIO_PIN_0
 #define RED_LED_GPIO_Port GPIOC
-#define YELLOW_LED_Pin LL_GPIO_PIN_1
+#define YELLOW_LED_Pin GPIO_PIN_1
 #define YELLOW_LED_GPIO_Port GPIOC
-#define GREEN_LED_Pin LL_GPIO_PIN_2
+#define GREEN_LED_Pin GPIO_PIN_2
 #define GREEN_LED_GPIO_Port GPIOC
-#define AIN1_Pin LL_GPIO_PIN_12
+#define OLED_CS_Pin GPIO_PIN_6
+#define OLED_CS_GPIO_Port GPIOA
+#define OLED_DC_Pin GPIO_PIN_4
+#define OLED_DC_GPIO_Port GPIOC
+#define OLED_Res_Pin GPIO_PIN_5
+#define OLED_Res_GPIO_Port GPIOC
+#define AIN1_Pin GPIO_PIN_12
 #define AIN1_GPIO_Port GPIOB
-#define AIN2_Pin LL_GPIO_PIN_13
+#define AIN2_Pin GPIO_PIN_13
 #define AIN2_GPIO_Port GPIOB
-#define BIN1_Pin LL_GPIO_PIN_14
+#define BIN1_Pin GPIO_PIN_14
 #define BIN1_GPIO_Port GPIOB
-#define BIN2_Pin LL_GPIO_PIN_15
+#define BIN2_Pin GPIO_PIN_15
 #define BIN2_GPIO_Port GPIOB
-#define STBY_Pin LL_GPIO_PIN_9
+#define STBY_Pin GPIO_PIN_9
 #define STBY_GPIO_Port GPIOC
-#define MOTOR_PWMA_Pin LL_GPIO_PIN_8
+#define MOTOR_PWMA_Pin GPIO_PIN_8
 #define MOTOR_PWMA_GPIO_Port GPIOA
-#define MOTOR_PWMB_Pin LL_GPIO_PIN_9
+#define MOTOR_PWMB_Pin GPIO_PIN_9
 #define MOTOR_PWMB_GPIO_Port GPIOA
 
 /* USER CODE BEGIN Private defines */

@@ -23,6 +23,7 @@
 /* USER CODE BEGIN Includes */
 #include "FS-iA6B.h"
 #include "MPU6050.h"
+#include "ssd1306.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -46,6 +47,8 @@ DMA_HandleTypeDef hdma_adc1;
 
 I2C_HandleTypeDef hi2c1;
 
+SPI_HandleTypeDef hspi1;
+
 /* USER CODE BEGIN PV */
 extern uint8_t usart2_rx_flag;
 extern uint8_t usart2_rx_data;
@@ -53,14 +56,11 @@ extern uint8_t usart2_rx_data;
 extern uint8_t ibus_rx_buf[32];
 extern uint8_t ibus_rx_cplt_flag;
 
-extern volatile uint8_t mpu_data_ready;
-
 extern uint8_t tim3_1000ms_flag;
 extern uint8_t tim3_100ms_flag;
 
-extern uint8_t Rec_Data[6];
-
 unsigned char failsafe_flag = 0;
+unsigned char overturn_flag = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -73,6 +73,7 @@ static void MX_TIM1_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_ADC1_Init(void);
+static void MX_SPI1_Init(void);
 /* USER CODE BEGIN PFP */
 int Is_iBus_Received(void);
 void Motor_Control(unsigned short left_speed, unsigned short right_speed);
@@ -95,6 +96,7 @@ int main(void)
 	unsigned short iBus_rx_cnt = 0;
 	uint32_t adcVal;
 	float batVolt;
+	uint8_t overturn_cnt = 0;
 
   /* USER CODE END 1 */
 
@@ -120,11 +122,10 @@ int main(void)
   MX_USART1_UART_Init();
   MX_USART2_UART_Init();
   MX_TIM1_Init();
-
-  I2C1_Clear_Bus();
   MX_I2C1_Init();
   MX_TIM3_Init();
   MX_ADC1_Init();
+  MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
   LL_USART_EnableIT_RXNE(USART2);
   LL_USART_EnableIT_RXNE(USART1);
@@ -145,6 +146,10 @@ int main(void)
 
   MPU6050_Init();
 
+  ssd1306_Init();
+  ssd1306_Fill(White);
+  ssd1306_UpdateScreen();
+
 //  MPU6050_Read_All_IT();
 
   LL_GPIO_ResetOutputPin(GPIOC, RED_LED_Pin);
@@ -164,6 +169,7 @@ int main(void)
     /* USER CODE BEGIN 3 */
 
 
+
 //	  uint16_t tempVolt = adcVal & 0xFFF;
 //
 //	  batVolt = tempVolt * 0.002417f;
@@ -178,9 +184,9 @@ int main(void)
 //	  while(!LL_USART_IsActiveFlag_TXE(USART2));
 //	  LL_USART_TransmitData8(USART2, low);
 
-	  if(failsafe_flag == 0)
+	  if((failsafe_flag | overturn_flag) == 0)
 	  {
-		  Motor_Control(iBus.LV, iBus.RH);
+		  Motor_Control(iBus.LV, iBus.LH);
 	  }
 	  else
 	  {
@@ -233,7 +239,28 @@ int main(void)
 	  {
 		  tim3_100ms_flag = 0;
 		  MPU6050_Read_Accel();
+		  if(Az < 0)
+		  {
+			  if(overturn_cnt < 4)
+			  {
+				  overturn_cnt++;
+			  }
+			  else
+			  {
+				  overturn_flag = 1;
+				  overturn_cnt = 0;
+			  }
+		  }
+		  else
+		  {
+			  if(iBus.RH < 1400 || iBus.RH > 1600)
+			  {
+				  overturn_flag = 0;
+			  }
+		  }
 	  }
+
+
 
 //	  Motor_Control(iBus.LV, iBus.RH);
 
@@ -401,6 +428,44 @@ static void MX_I2C1_Init(void)
 }
 
 /**
+  * @brief SPI1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_SPI1_Init(void)
+{
+
+  /* USER CODE BEGIN SPI1_Init 0 */
+
+  /* USER CODE END SPI1_Init 0 */
+
+  /* USER CODE BEGIN SPI1_Init 1 */
+
+  /* USER CODE END SPI1_Init 1 */
+  /* SPI1 parameter configuration*/
+  hspi1.Instance = SPI1;
+  hspi1.Init.Mode = SPI_MODE_MASTER;
+  hspi1.Init.Direction = SPI_DIRECTION_2LINES;
+  hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
+  hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
+  hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
+  hspi1.Init.NSS = SPI_NSS_SOFT;
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_16;
+  hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
+  hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
+  hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+  hspi1.Init.CRCPolynomial = 10;
+  if (HAL_SPI_Init(&hspi1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN SPI1_Init 2 */
+
+  /* USER CODE END SPI1_Init 2 */
+
+}
+
+/**
   * @brief TIM1 Initialization Function
   * @param None
   * @retval None
@@ -464,7 +529,7 @@ static void MX_TIM1_Init(void)
   PA8   ------> TIM1_CH1
   PA9   ------> TIM1_CH2
   */
-  GPIO_InitStruct.Pin = MOTOR_PWMA_Pin|MOTOR_PWMB_Pin;
+  GPIO_InitStruct.Pin = LL_GPIO_PIN_8|LL_GPIO_PIN_9;
   GPIO_InitStruct.Mode = LL_GPIO_MODE_ALTERNATE;
   GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
   GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
@@ -655,38 +720,49 @@ static void MX_DMA_Init(void)
   */
 static void MX_GPIO_Init(void)
 {
-  LL_GPIO_InitTypeDef GPIO_InitStruct = {0};
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
   /* USER CODE BEGIN MX_GPIO_Init_1 */
 
   /* USER CODE END MX_GPIO_Init_1 */
 
   /* GPIO Ports Clock Enable */
-  LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_GPIOH);
-  LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_GPIOC);
-  LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_GPIOA);
-  LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_GPIOB);
+  __HAL_RCC_GPIOH_CLK_ENABLE();
+  __HAL_RCC_GPIOC_CLK_ENABLE();
+  __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE();
 
-  /**/
-  LL_GPIO_ResetOutputPin(GPIOC, RED_LED_Pin|YELLOW_LED_Pin|GREEN_LED_Pin|STBY_Pin);
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOC, RED_LED_Pin|YELLOW_LED_Pin|GREEN_LED_Pin|OLED_DC_Pin
+                          |OLED_Res_Pin|STBY_Pin, GPIO_PIN_RESET);
 
-  /**/
-  LL_GPIO_ResetOutputPin(GPIOB, AIN1_Pin|AIN2_Pin|BIN1_Pin|BIN2_Pin);
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(OLED_CS_GPIO_Port, OLED_CS_Pin, GPIO_PIN_RESET);
 
-  /**/
-  GPIO_InitStruct.Pin = RED_LED_Pin|YELLOW_LED_Pin|GREEN_LED_Pin|STBY_Pin;
-  GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
-  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
-  GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
-  GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
-  LL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOB, AIN1_Pin|AIN2_Pin|BIN1_Pin|BIN2_Pin, GPIO_PIN_RESET);
 
-  /**/
+  /*Configure GPIO pins : RED_LED_Pin YELLOW_LED_Pin GREEN_LED_Pin OLED_DC_Pin
+                           OLED_Res_Pin STBY_Pin */
+  GPIO_InitStruct.Pin = RED_LED_Pin|YELLOW_LED_Pin|GREEN_LED_Pin|OLED_DC_Pin
+                          |OLED_Res_Pin|STBY_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : OLED_CS_Pin */
+  GPIO_InitStruct.Pin = OLED_CS_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(OLED_CS_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : AIN1_Pin AIN2_Pin BIN1_Pin BIN2_Pin */
   GPIO_InitStruct.Pin = AIN1_Pin|AIN2_Pin|BIN1_Pin|BIN2_Pin;
-  GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
-  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
-  GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
-  GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
-  LL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 
@@ -766,35 +842,27 @@ void Motor_Control(unsigned short go_back, unsigned short left_right) {
 
 	if(left_motor >= 0)
 	{
-		LL_GPIO_SetOutputPin(GPIOB, AIN1_Pin);
-		LL_GPIO_ResetOutputPin(GPIOB, AIN2_Pin);
-//		LL_GPIO_SetOutputPin(GPIOB, BIN1_Pin);
-//		LL_GPIO_ResetOutputPin(GPIOB, BIN2_Pin);
+		HAL_GPIO_WritePin(GPIOB, AIN1_Pin, GPIO_PIN_SET);
+		HAL_GPIO_WritePin(GPIOB, AIN2_Pin, GPIO_PIN_RESET);
 		left_speed = left_motor;
 	}
 	else
 	{
-		LL_GPIO_ResetOutputPin(GPIOB, AIN1_Pin);
-		LL_GPIO_SetOutputPin(GPIOB, AIN2_Pin);
-//		LL_GPIO_ResetOutputPin(GPIOB, BIN1_Pin);
-//		LL_GPIO_SetOutputPin(GPIOB, BIN2_Pin);
+		HAL_GPIO_WritePin(GPIOB, AIN1_Pin, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(GPIOB, AIN2_Pin, GPIO_PIN_SET);
 		left_speed = 0 - left_motor;
 	}
 
 	if(right_motor >= 0)
 	{
-//		LL_GPIO_SetOutputPin(GPIOB, AIN1_Pin);
-//		LL_GPIO_ResetOutputPin(GPIOB, AIN2_Pin);
-		LL_GPIO_SetOutputPin(GPIOB, BIN1_Pin);
-		LL_GPIO_ResetOutputPin(GPIOB, BIN2_Pin);
+		HAL_GPIO_WritePin(GPIOB, BIN1_Pin, GPIO_PIN_SET);
+		HAL_GPIO_WritePin(GPIOB, BIN2_Pin, GPIO_PIN_RESET);
 		right_speed = right_motor;
 	}
 	else
 	{
-//		LL_GPIO_ResetOutputPin(GPIOB, AIN1_Pin);
-//		LL_GPIO_SetOutputPin(GPIOB, AIN2_Pin);
-		LL_GPIO_ResetOutputPin(GPIOB, BIN1_Pin);
-		LL_GPIO_SetOutputPin(GPIOB, BIN2_Pin);
+		HAL_GPIO_WritePin(GPIOB, BIN1_Pin, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(GPIOB, BIN2_Pin, GPIO_PIN_SET);
 		right_speed = 0 - right_motor;
 	}
 
@@ -802,31 +870,36 @@ void Motor_Control(unsigned short go_back, unsigned short left_right) {
 	TIM1->CCR1 = left_speed * 41999 / 500;
 	TIM1->CCR2 = right_speed * 41999 / 500;
 
-//    // 왼쪽 모터(A) 방향 제어
-//    if (left_speed >= 1500) {
-//    	LL_GPIO_SetOutputPin(GPIOB, AIN1_Pin);
-//    	LL_GPIO_ResetOutputPin(GPIOB, AIN2_Pin);
-//        left_speed = left_speed - 1500;
-//    } else {
-//    	LL_GPIO_ResetOutputPin(GPIOB, AIN1_Pin);
-//    	LL_GPIO_SetOutputPin(GPIOB, AIN2_Pin);
-//        left_speed = 1500 - left_speed; // 속도는 양수로 변환
-//    }
+//	if(left_motor >= 0)
+//	{
+//		LL_GPIO_SetOutputPin(GPIOB, AIN1_Pin);
+//		LL_GPIO_ResetOutputPin(GPIOB, AIN2_Pin);
+//		left_speed = left_motor;
+//	}
+//	else
+//	{
+//		LL_GPIO_ResetOutputPin(GPIOB, AIN1_Pin);
+//		LL_GPIO_SetOutputPin(GPIOB, AIN2_Pin);
+//		left_speed = 0 - left_motor;
+//	}
 //
-//    // 오른쪽 모터(B) 방향 제어 (BIN1, BIN2 핀 추가 정의 필요)
-//    if (right_speed >= 1500) {
-//    	LL_GPIO_SetOutputPin(GPIOB, BIN1_Pin);
-//    	LL_GPIO_ResetOutputPin(GPIOB, BIN2_Pin);
-//    	right_speed = right_speed - 1500;
-//    } else {
-//    	LL_GPIO_ResetOutputPin(GPIOB, BIN1_Pin);
-//    	LL_GPIO_SetOutputPin(GPIOB, BIN2_Pin);
-//        right_speed = 1500 - right_speed;
-//    }
+//	if(right_motor >= 0)
+//	{
+//		LL_GPIO_SetOutputPin(GPIOB, BIN1_Pin);
+//		LL_GPIO_ResetOutputPin(GPIOB, BIN2_Pin);
+//		right_speed = right_motor;
+//	}
+//	else
+//	{
+//		LL_GPIO_ResetOutputPin(GPIOB, BIN1_Pin);
+//		LL_GPIO_SetOutputPin(GPIOB, BIN2_Pin);
+//		right_speed = 0 - right_motor;
+//	}
 //
-//    // 속도(PWM) 적용
-//    TIM1->CCR1 = left_speed * 20999 / 500;
-//    TIM1->CCR2 = right_speed * 20999 / 500;
+//	// 속도(PWM) 적용
+//	TIM1->CCR1 = left_speed * 41999 / 500;
+//	TIM1->CCR2 = right_speed * 41999 / 500;
+
 }
 /* USER CODE END 4 */
 

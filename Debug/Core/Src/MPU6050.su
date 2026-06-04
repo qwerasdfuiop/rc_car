@@ -1,4 +1,4 @@
 ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_usart.h:2426:22:LL_USART_TransmitData8	16	static
 ../Core/Src/MPU6050.c:29:6:MPU6050_Init	32	static
-../Core/Src/MPU6050.c:74:6:MPU6050_Read_Accel	24	static
-../Core/Src/MPU6050.c:94:6:MPU6050_Read_Gyro	24	static
+../Core/Src/MPU6050.c:68:6:MPU6050_Read_Accel	32	static
+../Core/Src/MPU6050.c:88:6:MPU6050_Read_Gyro	32	static

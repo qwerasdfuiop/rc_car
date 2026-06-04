@@ -24,18 +24,12 @@ float Ax, Ay, Az = 0;
 float Gx, Gy, Gz = 0;
 
 //uint8_t MPU_Rx_Buffer[14]; // 가속도~자이로까지 통째로 담을 버퍼
-uint8_t Rec_Data[6];
+//uint8_t Rec_Data[6];
 
 void MPU6050_Init (void)
 {
 
   uint8_t check, Data;
-
-  HAL_StatusTypeDef status;
-
-  status = HAL_I2C_Mem_Read (&hi2c1, MPU6050_ADDR, WHO_AM_I_REG, 1, &check, 1, 1000);
-
-
 
   //check device ID WHO_AM_I
   HAL_I2C_Mem_Read (&hi2c1, MPU6050_ADDR, WHO_AM_I_REG, 1, &check, 1, 1000);
@@ -73,7 +67,7 @@ void MPU6050_Init (void)
 
 void MPU6050_Read_Accel (void)
 {
-
+  uint8_t Rec_Data[6];
   // Read 6 BYTES of data starting from ACCEL_XOUT_H register
   HAL_I2C_Mem_Read(&hi2c1, MPU6050_ADDR, ACCEL_XOUT_H_REG, 1, Rec_Data, 6, 1000);
 
@@ -93,7 +87,7 @@ void MPU6050_Read_Accel (void)
 
 void MPU6050_Read_Gyro (void)
 {
-
+  uint8_t Rec_Data[6];
   // Read 6 BYTES of data starting from GYRO_XOUT_H register
   HAL_I2C_Mem_Read(&hi2c1, MPU6050_ADDR, GYRO_XOUT_H_REG, 1, Rec_Data, 6, 1000);
 
