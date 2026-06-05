@@ -21,9 +21,11 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include <stdio.h>
 #include "FS-iA6B.h"
 #include "MPU6050.h"
 #include "ssd1306.h"
+#include "ssd1306_fonts.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -97,6 +99,7 @@ int main(void)
 	uint32_t adcVal;
 	float batVolt;
 	uint8_t overturn_cnt = 0;
+	char voltString[16];
 
   /* USER CODE END 1 */
 
@@ -147,8 +150,6 @@ int main(void)
   MPU6050_Init();
 
   ssd1306_Init();
-  ssd1306_Fill(White);
-  ssd1306_UpdateScreen();
 
 //  MPU6050_Read_All_IT();
 
@@ -157,7 +158,6 @@ int main(void)
   HAL_ADC_Start_DMA(&hadc1, &adcVal, 1);
 
 //  while(Is_iBus_Received() == 0);
-
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -168,17 +168,22 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 
+	  uint16_t tempVolt = adcVal & 0xFFF;
+
+	  batVolt = tempVolt * 0.002417f;
+
+	  sprintf(voltString, "%.2fV", batVolt);
 
 
-//	  uint16_t tempVolt = adcVal & 0xFFF;
-//
-//	  batVolt = tempVolt * 0.002417f;
-//
+	  ssd1306_SetCursor(32, 16);
+	  ssd1306_WriteString(voltString, Font_11x18, White);
+	  ssd1306_UpdateScreen();
+
 //	  tempVolt = batVolt;
-//
+
 //	  uint8_t high = (tempVolt >> 8) & 0x0F;
 //	  uint8_t low = tempVolt & 0xFF;
-//
+
 //	  while(!LL_USART_IsActiveFlag_TXE(USART2));
 //	  LL_USART_TransmitData8(USART2, high);
 //	  while(!LL_USART_IsActiveFlag_TXE(USART2));
