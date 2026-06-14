@@ -22,6 +22,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
+#include <math.h>
 #include "FS-iA6B.h"
 #include "MPU6050.h"
 #include "ssd1306.h"
@@ -50,6 +51,7 @@ DMA_HandleTypeDef hdma_adc1;
 I2C_HandleTypeDef hi2c1;
 
 SPI_HandleTypeDef hspi1;
+DMA_HandleTypeDef hdma_spi1_tx;
 
 /* USER CODE BEGIN PV */
 extern uint8_t usart2_rx_flag;
@@ -63,6 +65,8 @@ extern uint8_t tim3_100ms_flag;
 
 unsigned char failsafe_flag = 0;
 unsigned char overturn_flag = 0;
+
+extern uint8_t is_ssd1306_tx_busy;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -100,6 +104,7 @@ int main(void)
 	float batVolt;
 	uint8_t overturn_cnt = 0;
 	char voltString[16];
+	uint8_t batLevel;
 
   /* USER CODE END 1 */
 
@@ -144,7 +149,7 @@ int main(void)
 
   LL_GPIO_SetOutputPin(GPIOC, STBY_Pin);
 
-  LL_GPIO_SetOutputPin(GPIOC, RED_LED_Pin);
+  //LL_GPIO_SetOutputPin(GPIOC, RED_LED_Pin);
   HAL_Delay(1000);
 
   MPU6050_Init();
@@ -153,9 +158,10 @@ int main(void)
 
 //  MPU6050_Read_All_IT();
 
-  LL_GPIO_ResetOutputPin(GPIOC, RED_LED_Pin);
+//  LL_GPIO_ResetOutputPin(GPIOC, RED_LED_Pin);
 
   HAL_ADC_Start_DMA(&hadc1, &adcVal, 1);
+
 
 //  while(Is_iBus_Received() == 0);
   /* USER CODE END 2 */
@@ -172,7 +178,9 @@ int main(void)
 
 	  batVolt = tempVolt * 0.002417f;
 
-	  sprintf(voltString, "%.2fV", batVolt);
+	  batLevel = batVolt/8.4 * 100.0;
+
+	  sprintf(voltString, "%d%%", batLevel);
 
 
 	  ssd1306_SetCursor(32, 16);
@@ -210,12 +218,12 @@ int main(void)
 
 			  if(iBus_isActiveFailsafe(&iBus) == 1)
 			  {
-				  LL_GPIO_SetOutputPin(GPIOC, RED_LED_Pin);
+				  //LL_GPIO_SetOutputPin(GPIOC, RED_LED_Pin);
 				  failsafe_flag = 1;
 			  }
 			  else
 			  {
-				  LL_GPIO_ResetOutputPin(GPIOC, RED_LED_Pin);
+				  //LL_GPIO_ResetOutputPin(GPIOC, RED_LED_Pin);
 				  failsafe_flag = 0;
 			  }
 
@@ -244,6 +252,30 @@ int main(void)
 	  {
 		  tim3_100ms_flag = 0;
 		  MPU6050_Read_Accel();
+//		  float pitch_deg = 0.0f;
+//		  float roll_deg = 0.0f;
+//
+//		  pitch_deg = atan2f(Ax, sqrtf(Ay * Ay + Az * Az)) * 57.2957795f;
+//		  roll_deg  = atan2f(Ay, sqrtf(Ax * Ax + Az * Az)) * 57.2957795f;
+//
+//		  float CRITICAL_ANGLE = 60.0f;
+//
+//		  // abs()가 아닌 부동소수점용 fabsf()를 사용하여 절대값 비교
+//		  if (fabsf(pitch_deg) > CRITICAL_ANGLE || fabsf(roll_deg) > CRITICAL_ANGLE)
+//		  {
+//		      // [Emergency Stop] 차가 완전히 뒤집어짐! 모터 정지 로직 가동
+//			  overturn_flag = 1;
+//
+//		  }
+//		  else
+//		  {
+//			  if(iBus.RH < 1400 || iBus.RH > 1600)
+//			  {
+//				  overturn_flag = 0;
+//			  }
+//		  }
+
+
 		  if(Az < 0)
 		  {
 			  if(overturn_cnt < 4)
@@ -715,6 +747,9 @@ static void MX_DMA_Init(void)
   /* DMA2_Stream0_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA2_Stream0_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA2_Stream0_IRQn);
+  /* DMA2_Stream3_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA2_Stream3_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA2_Stream3_IRQn);
 
 }
 
@@ -737,8 +772,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOC, RED_LED_Pin|YELLOW_LED_Pin|GREEN_LED_Pin|OLED_DC_Pin
-                          |OLED_Res_Pin|STBY_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOC, RED_LED_Pin|OLED_DC_Pin|OLED_Res_Pin|STBY_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(OLED_CS_GPIO_Port, OLED_CS_Pin, GPIO_PIN_RESET);
@@ -746,10 +780,8 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, AIN1_Pin|AIN2_Pin|BIN1_Pin|BIN2_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : RED_LED_Pin YELLOW_LED_Pin GREEN_LED_Pin OLED_DC_Pin
-                           OLED_Res_Pin STBY_Pin */
-  GPIO_InitStruct.Pin = RED_LED_Pin|YELLOW_LED_Pin|GREEN_LED_Pin|OLED_DC_Pin
-                          |OLED_Res_Pin|STBY_Pin;
+  /*Configure GPIO pins : RED_LED_Pin OLED_DC_Pin OLED_Res_Pin STBY_Pin */
+  GPIO_InitStruct.Pin = RED_LED_Pin|OLED_DC_Pin|OLED_Res_Pin|STBY_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -775,16 +807,6 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-//void HAL_I2C_MemRxCpltCallback(I2C_HandleTypeDef *hi2c)
-//{
-//  if (hi2c->Instance == I2C1)
-//  {
-//    mpu_data_ready = 1; // 메인 루프에게 데이터 왔다고 알림
-//
-////    LL_GPIO_SetOutputPin(GPIOC, GREEN_LED_Pin);
-//  }
-//
-//}
 
 void I2C1_Clear_Bus(void)
 {
@@ -905,6 +927,15 @@ void Motor_Control(unsigned short go_back, unsigned short left_right) {
 //	TIM1->CCR1 = left_speed * 41999 / 500;
 //	TIM1->CCR2 = right_speed * 41999 / 500;
 
+}
+
+void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi) {
+    if (hspi->Instance == SPI1) {
+        // 1024바이트가 화면에 완벽히 다 박힌 바로 이 순간!
+        // 안전하게 CS 핀을 HIGH로 올려서 통신을 종료합니다.
+    	HAL_GPIO_WritePin(SSD1306_CS_Port, SSD1306_CS_Pin, GPIO_PIN_SET);
+    	is_ssd1306_tx_busy = 0;
+    }
 }
 /* USER CODE END 4 */
 

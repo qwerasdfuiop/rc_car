@@ -71,10 +71,6 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 #define RED_LED_Pin GPIO_PIN_0
 #define RED_LED_GPIO_Port GPIOC
-#define YELLOW_LED_Pin GPIO_PIN_1
-#define YELLOW_LED_GPIO_Port GPIOC
-#define GREEN_LED_Pin GPIO_PIN_2
-#define GREEN_LED_GPIO_Port GPIOC
 #define OLED_CS_Pin GPIO_PIN_6
 #define OLED_CS_GPIO_Port GPIOA
 #define OLED_DC_Pin GPIO_PIN_4
