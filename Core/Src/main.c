@@ -200,11 +200,13 @@ int main(void)
 	  if((failsafe_flag | overturn_flag) == 0)
 	  {
 		  Motor_Control(iBus.LV, iBus.LH);
+		  HAL_GPIO_WritePin(GPIOC, RED_LED_Pin, GPIO_PIN_RESET);
 	  }
 	  else
 	  {
 			TIM1->CCR1 = 0;
 			TIM1->CCR2 = 0;
+			HAL_GPIO_WritePin(GPIOC, RED_LED_Pin, GPIO_PIN_SET);
 	  }
 
 	  if(ibus_rx_cplt_flag == 1)
@@ -252,29 +254,6 @@ int main(void)
 	  {
 		  tim3_100ms_flag = 0;
 		  MPU6050_Read_Accel();
-//		  float pitch_deg = 0.0f;
-//		  float roll_deg = 0.0f;
-//
-//		  pitch_deg = atan2f(Ax, sqrtf(Ay * Ay + Az * Az)) * 57.2957795f;
-//		  roll_deg  = atan2f(Ay, sqrtf(Ax * Ax + Az * Az)) * 57.2957795f;
-//
-//		  float CRITICAL_ANGLE = 60.0f;
-//
-//		  // abs()가 아닌 부동소수점용 fabsf()를 사용하여 절대값 비교
-//		  if (fabsf(pitch_deg) > CRITICAL_ANGLE || fabsf(roll_deg) > CRITICAL_ANGLE)
-//		  {
-//		      // [Emergency Stop] 차가 완전히 뒤집어짐! 모터 정지 로직 가동
-//			  overturn_flag = 1;
-//
-//		  }
-//		  else
-//		  {
-//			  if(iBus.RH < 1400 || iBus.RH > 1600)
-//			  {
-//				  overturn_flag = 0;
-//			  }
-//		  }
-
 
 		  if(Az < 0)
 		  {
@@ -862,8 +841,8 @@ void Motor_Control(unsigned short go_back, unsigned short left_right) {
 	int16_t throttle = go_back - 1500;
 	int16_t steer = left_right - 1500;
 
-	int16_t left_motor = throttle + steer;
-	int16_t right_motor = throttle - steer;
+	int16_t left_motor = throttle - steer;
+	int16_t right_motor = throttle + steer;
 
 	uint16_t left_speed, right_speed;
 
