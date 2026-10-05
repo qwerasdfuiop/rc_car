@@ -25,8 +25,6 @@
 #include <math.h>
 #include "FS-iA6B.h"
 #include "MPU6050.h"
-#include "ssd1306.h"
-#include "ssd1306_fonts.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -50,9 +48,6 @@ DMA_HandleTypeDef hdma_adc1;
 
 I2C_HandleTypeDef hi2c1;
 
-SPI_HandleTypeDef hspi1;
-DMA_HandleTypeDef hdma_spi1_tx;
-
 /* USER CODE BEGIN PV */
 extern uint8_t usart2_rx_flag;
 extern uint8_t usart2_rx_data;
@@ -65,8 +60,6 @@ extern uint8_t tim3_100ms_flag;
 
 unsigned char failsafe_flag = 0;
 unsigned char overturn_flag = 0;
-
-extern uint8_t is_ssd1306_tx_busy;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -79,7 +72,6 @@ static void MX_TIM1_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_ADC1_Init(void);
-static void MX_SPI1_Init(void);
 /* USER CODE BEGIN PFP */
 int Is_iBus_Received(void);
 void Motor_Control(unsigned short left_speed, unsigned short right_speed);
@@ -133,7 +125,6 @@ int main(void)
   MX_I2C1_Init();
   MX_TIM3_Init();
   MX_ADC1_Init();
-  MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
   LL_USART_EnableIT_RXNE(USART2);
   LL_USART_EnableIT_RXNE(USART1);
@@ -154,11 +145,6 @@ int main(void)
 
   MPU6050_Init();
 
-  ssd1306_Init();
-
-//  MPU6050_Read_All_IT();
-
-//  LL_GPIO_ResetOutputPin(GPIOC, RED_LED_Pin);
 
   HAL_ADC_Start_DMA(&hadc1, &adcVal, 1);
 
@@ -183,10 +169,6 @@ int main(void)
 	  sprintf(voltString, "%d%%", batLevel);
 
 
-	  ssd1306_SetCursor(32, 16);
-	  ssd1306_WriteString(voltString, Font_11x18, White);
-	  ssd1306_UpdateScreen();
-
 //	  tempVolt = batVolt;
 
 //	  uint8_t high = (tempVolt >> 8) & 0x0F;
@@ -204,9 +186,9 @@ int main(void)
 	  }
 	  else
 	  {
-			TIM1->CCR1 = 0;
-			TIM1->CCR2 = 0;
-			HAL_GPIO_WritePin(GPIOC, RED_LED_Pin, GPIO_PIN_SET);
+	      TIM1->CCR1 = 0;
+		  TIM1->CCR2 = 0;
+		  HAL_GPIO_WritePin(GPIOC, RED_LED_Pin, GPIO_PIN_SET);
 	  }
 
 	  if(ibus_rx_cplt_flag == 1)
@@ -275,37 +257,6 @@ int main(void)
 			  }
 		  }
 	  }
-
-
-
-//	  Motor_Control(iBus.LV, iBus.RH);
-
-//	  if (mpu_data_ready == 1)
-//	  {
-//		mpu_data_ready = 0; // 플래그 초기화
-//
-//		MPU6050_Parse_Data();
-//
-//		// 버퍼에 쌓인 14바이트를 가속도/자이로 변수(Ax, Gx 등)로 파싱
-//		uint8_t high = (Gyro_X_RAW >> 8) & 0xFF;
-//		uint8_t low  = Gyro_X_RAW & 0xFF;
-//
-//		while(!LL_USART_IsActiveFlag_TXE(USART2));
-//		LL_USART_TransmitData8(USART2, high);
-//		while(!LL_USART_IsActiveFlag_TXE(USART2));
-//		LL_USART_TransmitData8(USART2, low);
-//
-//		HAL_Delay(20);
-//
-//		// [확인용] 디버거 Live Expressions 창에서 Ax, Ay, Gx, Gy 값이
-//		// 센서를 기울일 때마다 실시간으로 변하는지 확인하면 끝!
-//
-//		// 중요: 다음 싸이클을 위해 인터럽트 수신을 다시 예약합니다.
-//		MPU6050_Read_All_IT();
-//	  }
-//
-//	  HAL_Delay(1000); // 주행 제어 주기 (10ms)
-
 
   }
   /* USER CODE END 3 */
@@ -440,44 +391,6 @@ static void MX_I2C1_Init(void)
   /* USER CODE BEGIN I2C1_Init 2 */
 
   /* USER CODE END I2C1_Init 2 */
-
-}
-
-/**
-  * @brief SPI1 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_SPI1_Init(void)
-{
-
-  /* USER CODE BEGIN SPI1_Init 0 */
-
-  /* USER CODE END SPI1_Init 0 */
-
-  /* USER CODE BEGIN SPI1_Init 1 */
-
-  /* USER CODE END SPI1_Init 1 */
-  /* SPI1 parameter configuration*/
-  hspi1.Instance = SPI1;
-  hspi1.Init.Mode = SPI_MODE_MASTER;
-  hspi1.Init.Direction = SPI_DIRECTION_2LINES;
-  hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
-  hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
-  hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
-  hspi1.Init.NSS = SPI_NSS_SOFT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_16;
-  hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
-  hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
-  hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
-  hspi1.Init.CRCPolynomial = 10;
-  if (HAL_SPI_Init(&hspi1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN SPI1_Init 2 */
-
-  /* USER CODE END SPI1_Init 2 */
 
 }
 
@@ -726,9 +639,6 @@ static void MX_DMA_Init(void)
   /* DMA2_Stream0_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA2_Stream0_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA2_Stream0_IRQn);
-  /* DMA2_Stream3_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA2_Stream3_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(DMA2_Stream3_IRQn);
 
 }
 
@@ -751,27 +661,17 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOC, RED_LED_Pin|OLED_DC_Pin|OLED_Res_Pin|STBY_Pin, GPIO_PIN_RESET);
-
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(OLED_CS_GPIO_Port, OLED_CS_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOC, RED_LED_Pin|STBY_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, AIN1_Pin|AIN2_Pin|BIN1_Pin|BIN2_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : RED_LED_Pin OLED_DC_Pin OLED_Res_Pin STBY_Pin */
-  GPIO_InitStruct.Pin = RED_LED_Pin|OLED_DC_Pin|OLED_Res_Pin|STBY_Pin;
+  /*Configure GPIO pins : RED_LED_Pin STBY_Pin */
+  GPIO_InitStruct.Pin = RED_LED_Pin|STBY_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : OLED_CS_Pin */
-  GPIO_InitStruct.Pin = OLED_CS_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(OLED_CS_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : AIN1_Pin AIN2_Pin BIN1_Pin BIN2_Pin */
   GPIO_InitStruct.Pin = AIN1_Pin|AIN2_Pin|BIN1_Pin|BIN2_Pin;
@@ -876,46 +776,9 @@ void Motor_Control(unsigned short go_back, unsigned short left_right) {
 	TIM1->CCR1 = left_speed * 41999 / 500;
 	TIM1->CCR2 = right_speed * 41999 / 500;
 
-//	if(left_motor >= 0)
-//	{
-//		LL_GPIO_SetOutputPin(GPIOB, AIN1_Pin);
-//		LL_GPIO_ResetOutputPin(GPIOB, AIN2_Pin);
-//		left_speed = left_motor;
-//	}
-//	else
-//	{
-//		LL_GPIO_ResetOutputPin(GPIOB, AIN1_Pin);
-//		LL_GPIO_SetOutputPin(GPIOB, AIN2_Pin);
-//		left_speed = 0 - left_motor;
-//	}
-//
-//	if(right_motor >= 0)
-//	{
-//		LL_GPIO_SetOutputPin(GPIOB, BIN1_Pin);
-//		LL_GPIO_ResetOutputPin(GPIOB, BIN2_Pin);
-//		right_speed = right_motor;
-//	}
-//	else
-//	{
-//		LL_GPIO_ResetOutputPin(GPIOB, BIN1_Pin);
-//		LL_GPIO_SetOutputPin(GPIOB, BIN2_Pin);
-//		right_speed = 0 - right_motor;
-//	}
-//
-//	// 속도(PWM) 적용
-//	TIM1->CCR1 = left_speed * 41999 / 500;
-//	TIM1->CCR2 = right_speed * 41999 / 500;
 
 }
 
-void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi) {
-    if (hspi->Instance == SPI1) {
-        // 1024바이트가 화면에 완벽히 다 박힌 바로 이 순간!
-        // 안전하게 CS 핀을 HIGH로 올려서 통신을 종료합니다.
-    	HAL_GPIO_WritePin(SSD1306_CS_Port, SSD1306_CS_Pin, GPIO_PIN_SET);
-    	is_ssd1306_tx_busy = 0;
-    }
-}
 /* USER CODE END 4 */
 
 /**
