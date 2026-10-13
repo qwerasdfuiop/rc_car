@@ -25,6 +25,7 @@
 #include <math.h>
 #include "FS-iA6B.h"
 #include "MPU6050.h"
+#include "max7219.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -47,6 +48,8 @@ ADC_HandleTypeDef hadc1;
 DMA_HandleTypeDef hdma_adc1;
 
 I2C_HandleTypeDef hi2c1;
+
+SPI_HandleTypeDef hspi1;
 
 /* USER CODE BEGIN PV */
 extern uint8_t usart2_rx_flag;
@@ -72,6 +75,7 @@ static void MX_TIM1_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_ADC1_Init(void);
+static void MX_SPI1_Init(void);
 /* USER CODE BEGIN PFP */
 int Is_iBus_Received(void);
 void Motor_Control(unsigned short left_speed, unsigned short right_speed);
@@ -95,7 +99,6 @@ int main(void)
 	uint32_t adcVal;
 	float batVolt;
 	uint8_t overturn_cnt = 0;
-	char voltString[16];
 	uint8_t batLevel;
 
   /* USER CODE END 1 */
@@ -125,6 +128,7 @@ int main(void)
   MX_I2C1_Init();
   MX_TIM3_Init();
   MX_ADC1_Init();
+  MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
   LL_USART_EnableIT_RXNE(USART2);
   LL_USART_EnableIT_RXNE(USART1);
@@ -145,11 +149,10 @@ int main(void)
 
   MPU6050_Init();
 
+  max7219_init();
 
   HAL_ADC_Start_DMA(&hadc1, &adcVal, 1);
 
-
-//  while(Is_iBus_Received() == 0);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -164,9 +167,10 @@ int main(void)
 
 	  batVolt = tempVolt * 0.002417f;
 
-	  batLevel = batVolt/8.4 * 100.0;
+	  batLevel = batVolt/8.4/0.125 + 1;
 
-	  sprintf(voltString, "%d%%", batLevel);
+	  display_voltage_level(batLevel);
+
 
 
 //	  tempVolt = batVolt;
@@ -191,23 +195,25 @@ int main(void)
 		  HAL_GPIO_WritePin(GPIOC, RED_LED_Pin, GPIO_PIN_SET);
 	  }
 
+
+
 	  if(ibus_rx_cplt_flag == 1)
 	  {
 		  ibus_rx_cplt_flag = 0;
 		  if(iBus_Check_CHKSUM(&ibus_rx_buf[0], 32) == 1)
 		  {
-			  //LL_GPIO_TogglePin(GPIOC, YELLOW_LED_Pin);
+
 			  iBus_Parsing(&ibus_rx_buf[0], &iBus);
 			  iBus_rx_cnt++;
 
 			  if(iBus_isActiveFailsafe(&iBus) == 1)
 			  {
-				  //LL_GPIO_SetOutputPin(GPIOC, RED_LED_Pin);
+
 				  failsafe_flag = 1;
 			  }
 			  else
 			  {
-				  //LL_GPIO_ResetOutputPin(GPIOC, RED_LED_Pin);
+
 				  failsafe_flag = 0;
 			  }
 
@@ -222,6 +228,7 @@ int main(void)
 		  }
 	  }
 
+	  //조종기로부터의 수신에 대한 fail-safe
 	  if(tim3_1000ms_flag == 1)
 	  {
 		  tim3_1000ms_flag = 0;
@@ -232,6 +239,7 @@ int main(void)
 		  iBus_rx_cnt = 0;
 	  }
 
+	  //인터럽트 방식으로 바꾸고 싶음
 	  if(tim3_100ms_flag == 1)
 	  {
 		  tim3_100ms_flag = 0;
@@ -391,6 +399,44 @@ static void MX_I2C1_Init(void)
   /* USER CODE BEGIN I2C1_Init 2 */
 
   /* USER CODE END I2C1_Init 2 */
+
+}
+
+/**
+  * @brief SPI1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_SPI1_Init(void)
+{
+
+  /* USER CODE BEGIN SPI1_Init 0 */
+
+  /* USER CODE END SPI1_Init 0 */
+
+  /* USER CODE BEGIN SPI1_Init 1 */
+
+  /* USER CODE END SPI1_Init 1 */
+  /* SPI1 parameter configuration*/
+  hspi1.Instance = SPI1;
+  hspi1.Init.Mode = SPI_MODE_MASTER;
+  hspi1.Init.Direction = SPI_DIRECTION_2LINES;
+  hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
+  hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
+  hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
+  hspi1.Init.NSS = SPI_NSS_SOFT;
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_16;
+  hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
+  hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
+  hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+  hspi1.Init.CRCPolynomial = 10;
+  if (HAL_SPI_Init(&hspi1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN SPI1_Init 2 */
+
+  /* USER CODE END SPI1_Init 2 */
 
 }
 
@@ -664,6 +710,9 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOC, RED_LED_Pin|STBY_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, AIN1_Pin|AIN2_Pin|BIN1_Pin|BIN2_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pins : RED_LED_Pin STBY_Pin */
@@ -672,6 +721,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : SPI1_CS_Pin */
+  GPIO_InitStruct.Pin = SPI1_CS_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(SPI1_CS_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : AIN1_Pin AIN2_Pin BIN1_Pin BIN2_Pin */
   GPIO_InitStruct.Pin = AIN1_Pin|AIN2_Pin|BIN1_Pin|BIN2_Pin;

@@ -1,0 +1,3 @@
+../Core/Src/max7219.c:6:6:max7219_send	24	static
+../Core/Src/max7219.c:14:6:max7219_init	16	static
+../Core/Src/max7219.c:27:6:display_voltage_level	24	static
