@@ -4,7 +4,7 @@
 	extern "C"{
 #endif
 
-
+// 조종 신호 파싱을 위한 구조체
 typedef struct _FSiA6B_iBus
 {
 	unsigned short RH;
@@ -21,10 +21,13 @@ typedef struct _FSiA6B_iBus
 	unsigned char FailSafe;
 }FSiA6B_iBus;
 
+// 조종 신호 파싱을 위한 버퍼
 extern FSiA6B_iBus iBus;
-
+// 체크섬 계산 함수
 unsigned char iBus_Check_CHKSUM(unsigned char * data, unsigned char len);
+// 조종기 신호 파싱 함수
 void iBus_Parsing(unsigned char* data, FSiA6B_iBus * iBus);
+// 조종 수신기로부터 수신되는 조종 송신기 <-> 조종 수신기 간의 fail 정보 확인하는 함수
 unsigned char iBus_isActiveFailsafe(FSiA6B_iBus * iBus);
 
 #ifdef __cplusplus

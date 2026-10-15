@@ -26,6 +26,7 @@
 #include "FS-iA6B.h"
 #include "MPU6050.h"
 #include "max7219.h"
+#include "stm32f4xx_it.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -52,17 +53,12 @@ I2C_HandleTypeDef hi2c1;
 SPI_HandleTypeDef hspi1;
 
 /* USER CODE BEGIN PV */
-extern uint8_t usart2_rx_flag;
-extern uint8_t usart2_rx_data;
 
-extern uint8_t ibus_rx_buf[32];
-extern uint8_t ibus_rx_cplt_flag;
-
-extern uint8_t tim3_1000ms_flag;
-extern uint8_t tim3_100ms_flag;
-
+// 조종기 통신 fail-safe flag
 unsigned char failsafe_flag = 0;
+// 자동차 전복 flag
 unsigned char overturn_flag = 0;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -77,9 +73,8 @@ static void MX_TIM3_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_SPI1_Init(void);
 /* USER CODE BEGIN PFP */
-int Is_iBus_Received(void);
+// 조종기 신호에 따라 모터 제어하는 함수
 void Motor_Control(unsigned short left_speed, unsigned short right_speed);
-void I2C1_Clear_Bus(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -95,10 +90,13 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-	unsigned short iBus_rx_cnt = 0;
+	// 배터리 전압을 읽는 adc 값
 	uint32_t adcVal;
+	// adc로부터 계산한 전압 값
 	float batVolt;
+	// 일정 주기마다 자이로 센서값을 읽어서 전복되어 있으면 증가
 	uint8_t overturn_cnt = 0;
+	// 표시할 배터리 레벨
 	uint8_t batLevel;
 
   /* USER CODE END 1 */
@@ -144,11 +142,11 @@ int main(void)
 
   LL_GPIO_SetOutputPin(GPIOC, STBY_Pin);
 
-  //LL_GPIO_SetOutputPin(GPIOC, RED_LED_Pin);
   HAL_Delay(1000);
 
+  // MPU6050(자이로 센서) 초기화
   MPU6050_Init();
-
+  // MAX7219(배터리 충전 상태 디스플레이) 초기화
   max7219_init();
 
   HAL_ADC_Start_DMA(&hadc1, &adcVal, 1);
@@ -163,101 +161,85 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 
+	  // 전압을 ADC로 읽음
 	  uint16_t tempVolt = adcVal & 0xFFF;
-
+    // ADC로부터 전압을 계산
 	  batVolt = tempVolt * 0.002417f;
-
-	  batLevel = batVolt/8.4/0.125 + 1;
-
+    // 전압을 배터리 레벨로 변환(완충 7.4V 기준)
+	  batLevel = batVolt/7.4/0.125 + 1;
+    batLevel = batLevel > 8 ? 8 : batLevel;
+    // 배터리 레벨을 디스플레이
 	  display_voltage_level(batLevel);
 
-
-
-//	  tempVolt = batVolt;
-
-//	  uint8_t high = (tempVolt >> 8) & 0x0F;
-//	  uint8_t low = tempVolt & 0xFF;
-
-//	  while(!LL_USART_IsActiveFlag_TXE(USART2));
-//	  LL_USART_TransmitData8(USART2, high);
-//	  while(!LL_USART_IsActiveFlag_TXE(USART2));
-//	  LL_USART_TransmitData8(USART2, low);
-
+    // 전복되어 있지 않고, fail-safe 가 없으면 모터 제어
 	  if((failsafe_flag | overturn_flag) == 0)
 	  {
 		  Motor_Control(iBus.LV, iBus.LH);
 		  HAL_GPIO_WritePin(GPIOC, RED_LED_Pin, GPIO_PIN_RESET);
 	  }
-	  else
+	  else // 모터 정지, 적색 led 켜짐
 	  {
-	      TIM1->CCR1 = 0;
+	    TIM1->CCR1 = 0;
 		  TIM1->CCR2 = 0;
 		  HAL_GPIO_WritePin(GPIOC, RED_LED_Pin, GPIO_PIN_SET);
 	  }
 
 
-
+    // ibus_rx_cplt_flag 가 1이면 조종기 신호 32바이트를 수신했음을 확인
 	  if(ibus_rx_cplt_flag == 1)
 	  {
 		  ibus_rx_cplt_flag = 0;
+      // 조종기 신호 32바이트의 체크섬 확인
 		  if(iBus_Check_CHKSUM(&ibus_rx_buf[0], 32) == 1)
 		  {
-
+        // 조종기 신호 32바이트를 파싱
 			  iBus_Parsing(&ibus_rx_buf[0], &iBus);
-			  iBus_rx_cnt++;
-
+			  //iBus_rx_cnt++;
+        // 조종 수신기로부터 수신되는 조종 송신기 <-> 조종 수신기 간의 fail 정보 확인
 			  if(iBus_isActiveFailsafe(&iBus) == 1)
 			  {
-
 				  failsafe_flag = 1;
 			  }
 			  else
 			  {
-
 				  failsafe_flag = 0;
 			  }
-
-//			  uint8_t high = (iBus.SwC >> 8) & 0xFF;
-//			  uint8_t low  = iBus.SwC & 0xFF;
-//
-//			  while(!LL_USART_IsActiveFlag_TXE(USART2));
-//			  LL_USART_TransmitData8(USART2, high);
-//			  while(!LL_USART_IsActiveFlag_TXE(USART2));
-//			  LL_USART_TransmitData8(USART2, low);
-//			  HAL_Delay(100);
 		  }
 	  }
 
-	  //조종기로부터의 수신에 대한 fail-safe
-	  if(tim3_1000ms_flag == 1)
-	  {
-		  tim3_1000ms_flag = 0;
-		  if(iBus_rx_cnt == 0)
-		  {
-			  failsafe_flag = 2;
-		  }
-		  iBus_rx_cnt = 0;
-	  }
+	  
+	  // if(tim3_1000ms_flag == 1)
+	  // {
+		//   tim3_1000ms_flag = 0;
+		//   if(iBus_rx_cnt == 0)
+		//   {
+		// 	  failsafe_flag = 2;
+		//   }
+		//   iBus_rx_cnt = 0;
+	  // }
 
-	  //인터럽트 방식으로 바꾸고 싶음
+	  //100ms마다 차량이 전복되어 있는지 확인
 	  if(tim3_100ms_flag == 1)
 	  {
 		  tim3_100ms_flag = 0;
+      // 자이로 센서로부터 가속도 값을 읽음
 		  MPU6050_Read_Accel();
-
+      // z축 가속도 값이 음수면 전복되었다고 판단
 		  if(Az < 0)
 		  {
+        // 전복되었다고 판단한 횟수가 4회 미만이면 전복 횟수 증가
 			  if(overturn_cnt < 4)
 			  {
 				  overturn_cnt++;
 			  }
+        // 전복되었다고 판단한 횟수가 4회 이상이면 전복 되었음을 확정하는 플래그 설정
 			  else
 			  {
 				  overturn_flag = 1;
 				  overturn_cnt = 0;
 			  }
 		  }
-		  else
+		  else // 조이스틱을 좌/우로 조작하면 overturn_flag 초기화
 		  {
 			  if(iBus.RH < 1400 || iBus.RH > 1600)
 			  {
@@ -743,57 +725,9 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
-void I2C1_Clear_Bus(void)
-{
-  // 1. SCL(PB8), SDA(PB7) 핀을 임시로 일반 GPIO 출력 모드로 설정
-  LL_GPIO_SetPinMode(GPIOB, LL_GPIO_PIN_8, LL_GPIO_MODE_OUTPUT);
-  LL_GPIO_SetPinMode(GPIOB, LL_GPIO_PIN_7, LL_GPIO_MODE_OUTPUT);
-
-  LL_GPIO_SetPinOutputType(GPIOB, LL_GPIO_PIN_8, LL_GPIO_OUTPUT_PUSHPULL);
-  LL_GPIO_SetPinOutputType(GPIOB, LL_GPIO_PIN_7, LL_GPIO_OUTPUT_PUSHPULL);
-
-  // SDA를 High로 두고 시작
-  LL_GPIO_SetOutputPin(GPIOB, LL_GPIO_PIN_7);
-
-  // 2. SCL 핀을 9번 흔들어서 슬레이브가 잡고 있는 SDA 라인을 해제하게 만듦
-  for (int i = 0; i < 9; i++)
-  {
-    LL_GPIO_ResetOutputPin(GPIOB, LL_GPIO_PIN_8); // SCL Low
-    HAL_Delay(1); // 아주 잠깐 대기
-    LL_GPIO_SetOutputPin(GPIOB, LL_GPIO_PIN_8);   // SCL High
-    HAL_Delay(1);
-
-    // 만약 슬레이브가 선을 놓아서 SDA가 High로 복구되었다면 조기 종료 가능
-    // (선택 사항이지만 안전을 위해 9번 다 흔드는 것이 확실합니다)
-  }
-
-  // 3. I2C 통신이 끝났음을 알리는 STOP 시퀀스를 수동으로 생성
-  LL_GPIO_ResetOutputPin(GPIOB, LL_GPIO_PIN_7); // SDA Low
-  HAL_Delay(1);
-  LL_GPIO_SetOutputPin(GPIOB, LL_GPIO_PIN_8);   // SCL High 상태에서
-  HAL_Delay(1);
-  LL_GPIO_SetOutputPin(GPIOB, LL_GPIO_PIN_7);   // SDA를 High로 올림 (STOP 조건)
-  HAL_Delay(1);
-
-  // 이제 MPU6050과의 꼬인 연결이 강제로 풀렸습니다!
-}
-
-int Is_iBus_Received(void)
-{
-	if(ibus_rx_cplt_flag == 1)
-	{
-		ibus_rx_cplt_flag = 0;
-		if(iBus_Check_CHKSUM(&ibus_rx_buf[0], 32) == 1)
-		{
-			iBus_Parsing(&ibus_rx_buf[0], &iBus);
-		}
-	}
-
-	return 1;
-}
-
 void Motor_Control(unsigned short go_back, unsigned short left_right) {
 
+  // 조이스틱 조작 값을 쓰로틀과 조향값으로 변환
 	int16_t throttle = go_back - 1500;
 	int16_t steer = left_right - 1500;
 
@@ -802,6 +736,7 @@ void Motor_Control(unsigned short go_back, unsigned short left_right) {
 
 	uint16_t left_speed, right_speed;
 
+  // 좌측 모터 구동 방향 설정
 	if(left_motor >= 0)
 	{
 		HAL_GPIO_WritePin(GPIOB, AIN1_Pin, GPIO_PIN_SET);
@@ -814,7 +749,7 @@ void Motor_Control(unsigned short go_back, unsigned short left_right) {
 		HAL_GPIO_WritePin(GPIOB, AIN2_Pin, GPIO_PIN_SET);
 		left_speed = 0 - left_motor;
 	}
-
+  // 우측 모터 구동 방향 설정
 	if(right_motor >= 0)
 	{
 		HAL_GPIO_WritePin(GPIOB, BIN1_Pin, GPIO_PIN_SET);

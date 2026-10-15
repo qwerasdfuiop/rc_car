@@ -27,7 +27,14 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+extern uint8_t usart2_rx_flag;
+extern uint8_t usart2_rx_data;
 
+extern uint8_t ibus_rx_buf[32];
+extern uint8_t ibus_rx_cplt_flag;
+
+extern uint8_t tim3_1000ms_flag;
+extern uint8_t tim3_100ms_flag;
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
