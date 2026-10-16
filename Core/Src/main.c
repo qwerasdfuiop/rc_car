@@ -55,9 +55,11 @@ SPI_HandleTypeDef hspi1;
 /* USER CODE BEGIN PV */
 
 // 조종기 통신 fail-safe flag
-unsigned char failsafe_flag = 0;
+unsigned char sigfail_flag = 0;
 // 자동차 전복 flag
 unsigned char overturn_flag = 0;
+// 일정 주기마다 자이로 센서값을 읽어서 전복되어 있으면 증가
+uint8_t overturn_cnt = 0;
 
 /* USER CODE END PV */
 
@@ -75,6 +77,9 @@ static void MX_SPI1_Init(void);
 /* USER CODE BEGIN PFP */
 // 조종기 신호에 따라 모터 제어하는 함수
 void Motor_Control(unsigned short left_speed, unsigned short right_speed);
+void Check_failflag(void);
+void Check_sigrx_cplt(void);
+void Check_if_overturn(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -90,14 +95,13 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-	// 배터리 전압을 읽는 adc 값
-	uint32_t adcVal;
-	// adc로부터 계산한 전압 값
-	float batVolt;
-	// 일정 주기마다 자이로 센서값을 읽어서 전복되어 있으면 증가
-	uint8_t overturn_cnt = 0;
-	// 표시할 배터리 레벨
-	uint8_t batLevel;
+
+  // 배터리 전압을 읽는 adc 값
+  uint32_t adcVal;
+  // adc로부터 계산한 전압 값
+  float batVolt;
+  // 표시할 배터리 레벨
+  uint8_t batLevel;
 
   /* USER CODE END 1 */
 
@@ -161,92 +165,35 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 
-	  // 전압을 ADC로 읽음
-	  uint16_t tempVolt = adcVal & 0xFFF;
+	// 전압을 ADC로 읽음
+	uint16_t tempVolt = adcVal & 0xFFF;
     // ADC로부터 전압을 계산
-	  batVolt = tempVolt * 0.002417f;
+	batVolt = tempVolt * 0.002417f;
     // 전압을 배터리 레벨로 변환(완충 7.4V 기준)
-	  batLevel = batVolt/7.4/0.125 + 1;
+	batLevel = batVolt/7.4/0.125 + 1;
     batLevel = batLevel > 8 ? 8 : batLevel;
     // 배터리 레벨을 디스플레이
-	  display_voltage_level(batLevel);
+	display_voltage_level(batLevel);
 
     // 전복되어 있지 않고, fail-safe 가 없으면 모터 제어
-	  if((failsafe_flag | overturn_flag) == 0)
-	  {
-		  Motor_Control(iBus.LV, iBus.LH);
-		  HAL_GPIO_WritePin(GPIOC, RED_LED_Pin, GPIO_PIN_RESET);
-	  }
-	  else // 모터 정지, 적색 led 켜짐
-	  {
-	    TIM1->CCR1 = 0;
-		  TIM1->CCR2 = 0;
-		  HAL_GPIO_WritePin(GPIOC, RED_LED_Pin, GPIO_PIN_SET);
-	  }
-
+	Check_failflag();
 
     // ibus_rx_cplt_flag 가 1이면 조종기 신호 32바이트를 수신했음을 확인
-	  if(ibus_rx_cplt_flag == 1)
-	  {
-		  ibus_rx_cplt_flag = 0;
-      // 조종기 신호 32바이트의 체크섬 확인
-		  if(iBus_Check_CHKSUM(&ibus_rx_buf[0], 32) == 1)
-		  {
-        // 조종기 신호 32바이트를 파싱
-			  iBus_Parsing(&ibus_rx_buf[0], &iBus);
-			  //iBus_rx_cnt++;
-        // 조종 수신기로부터 수신되는 조종 송신기 <-> 조종 수신기 간의 fail 정보 확인
-			  if(iBus_isActiveFailsafe(&iBus) == 1)
-			  {
-				  failsafe_flag = 1;
-			  }
-			  else
-			  {
-				  failsafe_flag = 0;
-			  }
-		  }
-	  }
+	Check_sigrx_cplt();
 
-	  
-	  // if(tim3_1000ms_flag == 1)
-	  // {
-		//   tim3_1000ms_flag = 0;
-		//   if(iBus_rx_cnt == 0)
-		//   {
-		// 	  failsafe_flag = 2;
-		//   }
+	// if(tim3_1000ms_flag == 1)
+	// {
+	//   tim3_1000ms_flag = 0;
+	//   if(iBus_rx_cnt == 0)
+	//   {
+	// 	  failsafe_flag = 2;
+	//   }
 		//   iBus_rx_cnt = 0;
-	  // }
+	// }
 
-	  //100ms마다 차량이 전복되어 있는지 확인
-	  if(tim3_100ms_flag == 1)
-	  {
-		  tim3_100ms_flag = 0;
-      // 자이로 센서로부터 가속도 값을 읽음
-		  MPU6050_Read_Accel();
-      // z축 가속도 값이 음수면 전복되었다고 판단
-		  if(Az < 0)
-		  {
-        // 전복되었다고 판단한 횟수가 4회 미만이면 전복 횟수 증가
-			  if(overturn_cnt < 4)
-			  {
-				  overturn_cnt++;
-			  }
-        // 전복되었다고 판단한 횟수가 4회 이상이면 전복 되었음을 확정하는 플래그 설정
-			  else
-			  {
-				  overturn_flag = 1;
-				  overturn_cnt = 0;
-			  }
-		  }
-		  else // 조이스틱을 좌/우로 조작하면 overturn_flag 초기화
-		  {
-			  if(iBus.RH < 1400 || iBus.RH > 1600)
-			  {
-				  overturn_flag = 0;
-			  }
-		  }
-	  }
+	//100ms마다 차량이 전복되어 있는지 확인
+	Check_if_overturn();
+
 
   }
   /* USER CODE END 3 */
@@ -769,6 +716,77 @@ void Motor_Control(unsigned short go_back, unsigned short left_right) {
 
 
 }
+
+void Check_failflag(void){
+	  if((sigfail_flag | overturn_flag) == 0)
+	  {
+		  Motor_Control(iBus.LV, iBus.LH);
+		  HAL_GPIO_WritePin(GPIOC, RED_LED_Pin, GPIO_PIN_RESET);
+	  }
+	  else // 모터 정지, 적색 led 켜짐
+	  {
+		  TIM1->CCR1 = 0;
+		  TIM1->CCR2 = 0;
+		  HAL_GPIO_WritePin(GPIOC, RED_LED_Pin, GPIO_PIN_SET);
+	  }
+
+}
+
+void Check_sigrx_cplt(void){
+	if(ibus_rx_cplt_flag == 1)
+	{
+		ibus_rx_cplt_flag = 0;
+		// 조종기 신호 32바이트의 체크섬 확인
+		if(iBus_Check_CHKSUM(&ibus_rx_buf[0], 32) == 1)
+		{
+			// 조종기 신호 32바이트를 파싱
+			iBus_Parsing(&ibus_rx_buf[0], &iBus);
+			//iBus_rx_cnt++;
+			// 조종 수신기로부터 수신되는 조종 송신기 <-> 조종 수신기 간의 fail 정보 확인
+			if(iBus_isActiveFailsafe(&iBus) == 1)
+			{
+				sigfail_flag = 1;
+			}
+			else
+			{
+				sigfail_flag = 0;
+			}
+		}
+	}
+}
+
+void Check_if_overturn(void){
+	if(tim3_100ms_flag == 1)
+	{
+		tim3_100ms_flag = 0;
+		// 자이로 센서로부터 가속도 값을 읽음
+		MPU6050_Read_Accel();
+		// z축 가속도 값이 음수면 전복되었다고 판단
+		if(Az < 0)
+		{
+			// 전복되었다고 판단한 횟수가 4회 미만이면 전복 횟수 증가
+			if(overturn_cnt < 4)
+			{
+				overturn_cnt++;
+			}
+			// 전복되었다고 판단한 횟수가 4회 이상이면 전복 되었음을 확정하는 플래그 설정
+			else
+			{
+				overturn_flag = 1;
+				overturn_cnt = 0;
+			}
+		}
+		else // 조이스틱을 좌/우로 조작하면 overturn_flag 초기화
+		{
+			if(iBus.RH < 1400 || iBus.RH > 1600)
+			{
+				overturn_flag = 0;
+			}
+		}
+	}
+}
+
+
 
 /* USER CODE END 4 */
 
