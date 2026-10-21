@@ -1,3 +1,4 @@
-../Core/Src/FS-iA6B.c:5:15:iBus_Check_CHKSUM	4
-../Core/Src/FS-iA6B.c:16:6:iBus_Parsing	1
-../Core/Src/FS-iA6B.c:28:15:iBus_isActiveFailsafe	1
+../Core/Src/FS-iA6B.c:7:15:iBus_Check_CHKSUM	4
+../Core/Src/FS-iA6B.c:18:6:iBus_Parsing	1
+../Core/Src/FS-iA6B.c:30:15:iBus_isActiveFailsafe	1
+../Core/Src/FS-iA6B.c:35:6:iBus_Check_Timeout	2

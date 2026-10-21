@@ -1,5 +1,7 @@
 #include "FS-iA6B.h"
 
+#define IBUS_TIMEOUT_MS 100U
+
 FSiA6B_iBus iBus;
 // 체크섬 계산 함수
 unsigned char iBus_Check_CHKSUM(unsigned char * data, unsigned char len)
@@ -28,4 +30,15 @@ void iBus_Parsing(unsigned char* data, FSiA6B_iBus * iBus)
 unsigned char iBus_isActiveFailsafe(FSiA6B_iBus * iBus)
 {
 	return iBus->FailSafe != 0;
+}
+// 조종 통신 타임아웃 확인 함수
+void iBus_Check_Timeout(void)
+{
+    uint32_t now = HAL_GetTick();
+
+    if ((uint32_t)(now - last_ibus_rx_tick)
+            >= IBUS_TIMEOUT_MS)
+    {
+        sigfail_flag = 1;
+    }
 }

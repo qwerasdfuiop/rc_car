@@ -53,9 +53,10 @@ I2C_HandleTypeDef hi2c1;
 SPI_HandleTypeDef hspi1;
 
 /* USER CODE BEGIN PV */
-
+// 조종기 통신 타임아웃 타이머
+uint32_t last_ibus_rx_tick = 0;
 // 조종기 통신 fail-safe flag
-unsigned char sigfail_flag = 0;
+unsigned char sigfail_flag = 1;
 // 자동차 전복 flag
 unsigned char overturn_flag = 0;
 // 일정 주기마다 자이로 센서값을 읽어서 전복되어 있으면 증가
@@ -741,7 +742,8 @@ void Check_sigrx_cplt(void){
 		{
 			// 조종기 신호 32바이트를 파싱
 			iBus_Parsing(&ibus_rx_buf[0], &iBus);
-			//iBus_rx_cnt++;
+			// 마지막 정상 프레임 수신 시각 기록
+      last_ibus_rx_tick = HAL_GetTick();
 			// 조종 수신기로부터 수신되는 조종 송신기 <-> 조종 수신기 간의 fail 정보 확인
 			if(iBus_isActiveFailsafe(&iBus) == 1)
 			{
@@ -751,8 +753,9 @@ void Check_sigrx_cplt(void){
 			{
 				sigfail_flag = 0;
 			}
-		}
+		}  
 	}
+  iBus_Check_Timeout();
 }
 
 void Check_if_overturn(void){
