@@ -69,8 +69,13 @@ unsigned char sigfail_flag = 1;
 // 자동차 전복 flag
 unsigned char overturn_flag = 0;
 // 일정 주기마다 자이로 센서값을 읽어서 전복되어 있으면 증가
-uint8_t overturn_cnt = 0;
-
+uint8_t overturn_cnt;
+// 배터리 전압을 읽는 adc 값
+uint32_t adcVal;
+// adc로부터 계산한 전압 값
+float batVolt;
+// 표시할 배터리 레벨
+uint8_t batLevel;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -108,12 +113,7 @@ int main(void)
 
   /* USER CODE BEGIN 1 */
 
-  // 배터리 전압을 읽는 adc 값
-  uint32_t adcVal;
-  // adc로부터 계산한 전압 값
-  float batVolt;
-  // 표시할 배터리 레벨
-  uint8_t batLevel;
+
 
   /* USER CODE END 1 */
 
@@ -213,34 +213,6 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 
-	// 전압을 ADC로 읽음
-	uint16_t tempVolt = adcVal & 0xFFF;
-    // ADC로부터 전압을 계산
-	batVolt = tempVolt * 0.002417f;
-    // 전압을 배터리 레벨로 변환(완충 7.4V 기준)
-	batLevel = batVolt/7.4/0.125 + 1;
-    batLevel = batLevel > 8 ? 8 : batLevel;
-    // 배터리 레벨을 디스플레이
-	display_voltage_level(batLevel);
-
-    // 전복되어 있지 않고, fail-safe 가 없으면 모터 제어
-	Check_failflag();
-
-    // ibus_rx_cplt_flag 가 1이면 조종기 신호 32바이트를 수신했음을 확인
-	Check_sigrx_cplt();
-
-	// if(tim3_1000ms_flag == 1)
-	// {
-	//   tim3_1000ms_flag = 0;
-	//   if(iBus_rx_cnt == 0)
-	//   {
-	// 	  failsafe_flag = 2;
-	//   }
-		//   iBus_rx_cnt = 0;
-	// }
-
-	//100ms마다 차량이 전복되어 있는지 확인
-	Check_if_overturn();
 
 
   }
@@ -858,10 +830,29 @@ void Check_if_overturn(void){
 void StartDefaultTask(void *argument)
 {
   /* USER CODE BEGIN 5 */
+
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1);
+    overturn_cnt = 0;
+    // 전압을 ADC로 읽음
+    uint16_t tempVolt = adcVal & 0xFFF;
+    // ADC로부터 전압을 계산
+    batVolt = tempVolt * 0.002417f;
+    // 전압을 배터리 레벨로 변환(완충 7.4V 기준)
+    batLevel = batVolt/7.4/0.125 + 1;
+    batLevel = batLevel > 8 ? 8 : batLevel;
+    // 배터리 레벨을 디스플레이
+    display_voltage_level(batLevel);
+
+    // 전복되어 있지 않고, fail-safe 가 없으면 모터 제어
+    Check_failflag();
+
+    // ibus_rx_cplt_flag 가 1이면 조종기 신호 32바이트를 수신했음을 확인
+    Check_sigrx_cplt();
+
+    //100ms마다 차량이 전복되어 있는지 확인
+    Check_if_overturn();
   }
   /* USER CODE END 5 */
 }
