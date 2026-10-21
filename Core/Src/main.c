@@ -54,12 +54,33 @@ I2C_HandleTypeDef hi2c1;
 
 SPI_HandleTypeDef hspi1;
 
-/* Definitions for defaultTask */
-osThreadId_t defaultTaskHandle;
-const osThreadAttr_t defaultTask_attributes = {
-  .name = "defaultTask",
+/* Definitions for ControlTask */
+osThreadId_t ControlTaskHandle;
+const osThreadAttr_t ControlTask_attributes = {
+  .name = "ControlTask",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityHigh,
+};
+/* Definitions for ReceiverTask */
+osThreadId_t ReceiverTaskHandle;
+const osThreadAttr_t ReceiverTask_attributes = {
+  .name = "ReceiverTask",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityAboveNormal,
+};
+/* Definitions for OverturnTask */
+osThreadId_t OverturnTaskHandle;
+const osThreadAttr_t OverturnTask_attributes = {
+  .name = "OverturnTask",
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityNormal,
+};
+/* Definitions for DisplayTask */
+osThreadId_t DisplayTaskHandle;
+const osThreadAttr_t DisplayTask_attributes = {
+  .name = "DisplayTask",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityLow,
 };
 /* USER CODE BEGIN PV */
 // 조종기 통신 타임아웃 타이머
@@ -69,7 +90,7 @@ unsigned char sigfail_flag = 1;
 // 자동차 전복 flag
 unsigned char overturn_flag = 0;
 // 일정 주기마다 자이로 센서값을 읽어서 전복되어 있으면 증가
-uint8_t overturn_cnt;
+uint8_t overturn_cnt = 0;
 // 배터리 전압을 읽는 adc 값
 uint32_t adcVal;
 // adc로부터 계산한 전압 값
@@ -89,7 +110,10 @@ static void MX_I2C1_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_SPI1_Init(void);
-void StartDefaultTask(void *argument);
+void StartControlTask(void *argument);
+void StartReceiverTask(void *argument);
+void StartOverturnTask(void *argument);
+void StartDisplayTask(void *argument);
 
 /* USER CODE BEGIN PFP */
 // 조종기 신호에 따라 모터 제어하는 함수
@@ -189,8 +213,17 @@ int main(void)
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
-  /* creation of defaultTask */
-  defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
+  /* creation of ControlTask */
+  ControlTaskHandle = osThreadNew(StartControlTask, NULL, &ControlTask_attributes);
+
+  /* creation of ReceiverTask */
+  ReceiverTaskHandle = osThreadNew(StartReceiverTask, NULL, &ReceiverTask_attributes);
+
+  /* creation of OverturnTask */
+  OverturnTaskHandle = osThreadNew(StartOverturnTask, NULL, &OverturnTask_attributes);
+
+  /* creation of DisplayTask */
+  DisplayTaskHandle = osThreadNew(StartDisplayTask, NULL, &DisplayTask_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -820,31 +853,20 @@ void Check_if_overturn(void){
 
 /* USER CODE END 4 */
 
-/* USER CODE BEGIN Header_StartDefaultTask */
+/* USER CODE BEGIN Header_StartControlTask */
 /**
-  * @brief  Function implementing the defaultTask thread.
+  * @brief  Function implementing the ControlTask thread.
   * @param  argument: Not used
   * @retval None
   */
-/* USER CODE END Header_StartDefaultTask */
-void StartDefaultTask(void *argument)
+/* USER CODE END Header_StartControlTask */
+void StartControlTask(void *argument)
 {
   /* USER CODE BEGIN 5 */
 
   /* Infinite loop */
   for(;;)
   {
-    overturn_cnt = 0;
-    // 전압을 ADC로 읽음
-    uint16_t tempVolt = adcVal & 0xFFF;
-    // ADC로부터 전압을 계산
-    batVolt = tempVolt * 0.002417f;
-    // 전압을 배터리 레벨로 변환(완충 7.4V 기준)
-    batLevel = batVolt/7.4/0.125 + 1;
-    batLevel = batLevel > 8 ? 8 : batLevel;
-    // 배터리 레벨을 디스플레이
-    display_voltage_level(batLevel);
-
     // 전복되어 있지 않고, fail-safe 가 없으면 모터 제어
     Check_failflag();
 
@@ -855,6 +877,68 @@ void StartDefaultTask(void *argument)
     Check_if_overturn();
   }
   /* USER CODE END 5 */
+}
+
+/* USER CODE BEGIN Header_StartReceiverTask */
+/**
+* @brief Function implementing the ReceiverTask thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartReceiverTask */
+void StartReceiverTask(void *argument)
+{
+  /* USER CODE BEGIN StartReceiverTask */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END StartReceiverTask */
+}
+
+/* USER CODE BEGIN Header_StartOverturnTask */
+/**
+* @brief Function implementing the OverturnTask thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartOverturnTask */
+void StartOverturnTask(void *argument)
+{
+  /* USER CODE BEGIN StartOverturnTask */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END StartOverturnTask */
+}
+
+/* USER CODE BEGIN Header_StartDisplayTask */
+/**
+* @brief Function implementing the DisplayTask thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartDisplayTask */
+void StartDisplayTask(void *argument)
+{
+  /* USER CODE BEGIN StartDisplayTask */
+  /* Infinite loop */
+  for(;;)
+  {
+	// 전압을 ADC로 읽음
+	uint16_t tempVolt = adcVal & 0xFFF;
+	// ADC로부터 전압을 계산
+	batVolt = tempVolt * 0.002417f;
+	// 전압을 배터리 레벨로 변환(완충 7.4V 기준)
+	batLevel = batVolt/7.4/0.125 + 1;
+	batLevel = batLevel > 8 ? 8 : batLevel;
+	// 배터리 레벨을 디스플레이
+	display_voltage_level(batLevel);
+  }
+  /* USER CODE END StartDisplayTask */
 }
 
 /**
