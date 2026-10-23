@@ -119,7 +119,7 @@ void StartDisplayTask(void *argument);
 // 조종기 신호에 따라 모터 제어하는 함수
 void Motor_Control(unsigned short left_speed, unsigned short right_speed);
 void Check_failflag(void);
-void Check_sigrx_cplt(void);
+void Check_sigrx_cplt(uint8_t *rxFrame);
 void Check_if_overturn(void);
 /* USER CODE END PFP */
 
@@ -168,7 +168,7 @@ int main(void)
   MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
   LL_USART_EnableIT_RXNE(USART2);
-  LL_USART_EnableIT_RXNE(USART1);
+  
 
   LL_TIM_EnableCounter(TIM1);
   LL_TIM_CC_EnableChannel(TIM1, LL_TIM_CHANNEL_CH1);
@@ -206,7 +206,7 @@ int main(void)
 
   /* Create the queue(s) */
   /* creation of iBusRxQueue */
-  iBusRxQueueHandle = osMessageQueueNew (3, sizeof(uint32_t), &iBusRxQueue_attributes);
+  iBusRxQueueHandle = osMessageQueueNew (3, 32, &iBusRxQueue_attributes);
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
@@ -746,36 +746,25 @@ void Check_failflag(void){
 
 }
 
-void Check_sigrx_cplt(void){
-	if(ibus_rx_cplt_flag == 1)
-	{
-    uint8_t local_buf[32];
+void Check_sigrx_cplt(uint8_t *rxFrame){
 
-    NVIC_DisableIRQ(USART1_IRQn);
-		
-    ibus_rx_cplt_flag = 0;
-    memcpy(local_buf, ibus_rx_buf, 32);
-    
-    NVIC_EnableIRQ(USART1_IRQn);
-
-		// 조종기 신호 32바이트의 체크섬 확인
-		if(iBus_Check_CHKSUM(&ibus_rx_buf[0], 32) == 1)
-		{
-			// 조종기 신호 32바이트를 파싱
-			iBus_Parsing(&ibus_rx_buf[0], &iBus);
-			// 마지막 정상 프레임 수신 시각 기록
-      last_ibus_rx_tick = HAL_GetTick();
-			// 조종 수신기로부터 수신되는 조종 송신기 <-> 조종 수신기 간의 fail 정보 확인
-			if(iBus_isActiveFailsafe(&iBus) == 1)
-			{
-				sigfail_flag = 1;
-			}
-			else
-			{
-				sigfail_flag = 0;
-			}
-		}  
-	}
+  // 조종기 신호 32바이트의 체크섬 확인
+  if(iBus_Check_CHKSUM(&rxFrame[0], 32) == 1)
+  {
+    // 조종기 신호 32바이트를 파싱
+    iBus_Parsing(&rxFrame[0], &iBus);
+    // 마지막 정상 프레임 수신 시각 기록
+    last_ibus_rx_tick = HAL_GetTick();
+    // 조종 송신기 <-> 조종 수신기 간의 fail 정보 확인
+    if(iBus_isActiveFailsafe(&iBus) == 1)
+    {
+      sigfail_flag = 1;
+    }
+    else
+    {
+      sigfail_flag = 0;
+    }
+  }  
   iBus_Check_Timeout();
 }
 
@@ -834,8 +823,7 @@ void StartControlTask(void *argument)
     // 전복되어 있지 않고, fail-safe 가 없으면 모터 제어
     Check_failflag();
 
-    // ibus_rx_cplt_flag 가 1이면 조종기 신호 32바이트를 수신했음을 확인
-    Check_sigrx_cplt();
+
   }
   /* USER CODE END 5 */
 }
@@ -850,10 +838,16 @@ void StartControlTask(void *argument)
 void StartReceiverTask(void *argument)
 {
   /* USER CODE BEGIN StartReceiverTask */
+  uint8_t rxFrame[32];
+  LL_USART_EnableIT_RXNE(USART1);
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1);
+    if (osMessageQueueGet(iBusRxQueueHandle, rxFrame, NULL, osWaitForever) == osOK)
+    {
+      // 조종기 신호 32바이트를 수신했음을 확인
+      Check_sigrx_cplt(rxFrame);
+    }
   }
   /* USER CODE END StartReceiverTask */
 }

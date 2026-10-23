@@ -22,6 +22,7 @@
 #include "stm32f4xx_it.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "cmsis_os2.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -41,13 +42,14 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN PV */
+extern osMessageQueueId_t iBusRxQueueHandle;
+
 uint8_t usart1_rx_data = 0;
 
 uint8_t usart2_rx_flag = 0;
 uint8_t usart2_rx_data = 0;
 
 uint8_t ibus_rx_buf[32];
-uint8_t ibus_rx_cplt_flag = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -198,10 +200,24 @@ void USART1_IRQHandler(void)
 				cnt = 0;
 			break;
 		case 31:
-			ibus_rx_buf[cnt] = usart1_rx_data;
-			cnt = 0;
-			ibus_rx_cplt_flag = 1;
-			break;
+      ibus_rx_buf[cnt] = usart1_rx_data;
+      cnt = 0;
+
+      if (iBusRxQueueHandle != NULL)
+      {
+          osStatus_t status = osMessageQueuePut(
+              iBusRxQueueHandle,
+              ibus_rx_buf,
+              0,
+              0
+          );
+
+          if (status != osOK)
+          {
+              cnt = 0;
+          }
+      }
+      break;
 		default:
 			ibus_rx_buf[cnt] = usart1_rx_data;
 			cnt++;

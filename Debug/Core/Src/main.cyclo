@@ -1,6 +1,5 @@
 ../Drivers/CMSIS/Include/core_cm4.h:1672:26:__NVIC_GetPriorityGrouping	1
 ../Drivers/CMSIS/Include/core_cm4.h:1684:22:__NVIC_EnableIRQ	2
-../Drivers/CMSIS/Include/core_cm4.h:1722:22:__NVIC_DisableIRQ	2
 ../Drivers/CMSIS/Include/core_cm4.h:1814:22:__NVIC_SetPriority	2
 ../Drivers/CMSIS/Include/core_cm4.h:1861:26:NVIC_EncodePriority	2
 ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_tim.h:1116:22:LL_TIM_EnableCounter	1
@@ -31,11 +30,11 @@
 ../Core/Src/main.c:639:13:MX_GPIO_Init	1
 ../Core/Src/main.c:689:6:Motor_Control	3
 ../Core/Src/main.c:734:6:Check_failflag	2
-../Core/Src/main.c:749:6:Check_sigrx_cplt	4
-../Core/Src/main.c:782:6:Check_if_overturn	5
-../Core/Src/main.c:822:6:StartControlTask	1
-../Core/Src/main.c:850:6:StartReceiverTask	1
-../Core/Src/main.c:868:6:StartOverturnTask	1
-../Core/Src/main.c:892:6:StartDisplayTask	1
-../Core/Src/main.c:927:6:HAL_TIM_PeriodElapsedCallback	2
-../Core/Src/main.c:945:6:Error_Handler	1
+../Core/Src/main.c:749:6:Check_sigrx_cplt	3
+../Core/Src/main.c:771:6:Check_if_overturn	5
+../Core/Src/main.c:811:6:StartControlTask	1
+../Core/Src/main.c:838:6:StartReceiverTask	2
+../Core/Src/main.c:862:6:StartOverturnTask	1
+../Core/Src/main.c:886:6:StartDisplayTask	1
+../Core/Src/main.c:921:6:HAL_TIM_PeriodElapsedCallback	2
+../Core/Src/main.c:939:6:Error_Handler	1
