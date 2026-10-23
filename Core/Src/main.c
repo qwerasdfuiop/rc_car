@@ -859,10 +859,15 @@ void Check_if_overturn(void){
 void StartControlTask(void *argument)
 {
   /* USER CODE BEGIN 5 */
+  TickType_t xLastWakeTime = xTaskGetTickCount();
 
   /* Infinite loop */
   for(;;)
   {
+    vTaskDelayUntil(
+      &xLastWakeTime,
+      pdMS_TO_TICKS(10)
+    );
     // 전복되어 있지 않고, fail-safe 가 없으면 모터 제어
     Check_failflag();
 

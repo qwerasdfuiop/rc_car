@@ -36,9 +36,9 @@
 ../Core/Src/main.c:769:6:Check_failflag	8	static
 ../Core/Src/main.c:784:6:Check_sigrx_cplt	48	static
 ../Core/Src/main.c:817:6:Check_if_overturn	8	static
-../Core/Src/main.c:859:6:StartControlTask	16	static
-../Core/Src/main.c:885:6:StartReceiverTask	16	static
-../Core/Src/main.c:903:6:StartOverturnTask	16	static
-../Core/Src/main.c:921:6:StartDisplayTask	32	static
-../Core/Src/main.c:956:6:HAL_TIM_PeriodElapsedCallback	16	static
-../Core/Src/main.c:974:6:Error_Handler	4	static,ignoring_inline_asm
+../Core/Src/main.c:859:6:StartControlTask	24	static
+../Core/Src/main.c:890:6:StartReceiverTask	16	static
+../Core/Src/main.c:908:6:StartOverturnTask	16	static
+../Core/Src/main.c:926:6:StartDisplayTask	32	static
+../Core/Src/main.c:961:6:HAL_TIM_PeriodElapsedCallback	16	static
+../Core/Src/main.c:979:6:Error_Handler	4	static,ignoring_inline_asm
