@@ -33,9 +33,9 @@
 ../Core/Src/main.c:725:6:Check_failflag	2
 ../Core/Src/main.c:740:6:Check_sigrx_cplt	4
 ../Core/Src/main.c:773:6:Check_if_overturn	5
-../Core/Src/main.c:812:6:StartControlTask	1
-../Core/Src/main.c:840:6:StartReceiverTask	1
-../Core/Src/main.c:858:6:StartOverturnTask	1
-../Core/Src/main.c:882:6:StartDisplayTask	1
-../Core/Src/main.c:917:6:HAL_TIM_PeriodElapsedCallback	2
-../Core/Src/main.c:935:6:Error_Handler	1
+../Core/Src/main.c:813:6:StartControlTask	1
+../Core/Src/main.c:841:6:StartReceiverTask	1
+../Core/Src/main.c:859:6:StartOverturnTask	1
+../Core/Src/main.c:883:6:StartDisplayTask	1
+../Core/Src/main.c:918:6:HAL_TIM_PeriodElapsedCallback	2
+../Core/Src/main.c:936:6:Error_Handler	1

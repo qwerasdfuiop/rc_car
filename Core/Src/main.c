@@ -791,6 +791,7 @@ void Check_if_overturn(void){
   }
   else // 조이스틱을 좌/우로 조작하면 overturn_flag 초기화
   {
+    overturn_cnt = 0;
     if(iBus.RH < 1400 || iBus.RH > 1600)
     {
       overturn_flag = 0;
