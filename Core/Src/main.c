@@ -93,10 +93,6 @@ unsigned char overturn_flag = 0;
 uint8_t overturn_cnt = 0;
 // 배터리 전압을 읽는 adc 값
 uint32_t adcVal;
-// adc로부터 계산한 전압 값
-float batVolt;
-// 표시할 배터리 레벨
-uint8_t batLevel;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -925,18 +921,24 @@ void StartOverturnTask(void *argument)
 void StartDisplayTask(void *argument)
 {
   /* USER CODE BEGIN StartDisplayTask */
+  TickType_t xLastWakeTime = xTaskGetTickCount();
+  // adc로부터 계산한 전압 값
+  float batVolt;
+  // 표시할 배터리 레벨
+  uint8_t batLevel;
+  vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(200));
   /* Infinite loop */
   for(;;)
   {
-	// 전압을 ADC로 읽음
-	uint16_t tempVolt = adcVal & 0xFFF;
-	// ADC로부터 전압을 계산
-	batVolt = tempVolt * 0.002417f;
-	// 전압을 배터리 레벨로 변환(완충 7.4V 기준)
-	batLevel = batVolt/7.4/0.125 + 1;
-	batLevel = batLevel > 8 ? 8 : batLevel;
-	// 배터리 레벨을 디스플레이
-	display_voltage_level(batLevel);
+    // 전압을 ADC로 읽음
+    uint16_t tempVolt = adcVal & 0xFFF;
+    // ADC로부터 전압을 계산
+    batVolt = tempVolt * 0.002417f;
+    // 전압을 배터리 레벨로 변환(완충 7.4V 기준)
+    batLevel = batVolt/7.4/0.125 + 1;
+    batLevel = batLevel > 8 ? 8 : batLevel;
+    // 배터리 레벨을 디스플레이
+    display_voltage_level(batLevel);
   }
   /* USER CODE END StartDisplayTask */
 }
