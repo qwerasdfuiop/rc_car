@@ -214,7 +214,7 @@ void USART1_IRQHandler(void)
 
           if (status != osOK)
           {
-              cnt = 0;
+              // 메시지 큐에 데이터가 가득찼을 경우에 예외처리
           }
       }
       break;

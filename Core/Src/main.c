@@ -765,7 +765,7 @@ void Check_sigrx_cplt(uint8_t *rxFrame){
       sigfail_flag = 0;
     }
   }  
-  iBus_Check_Timeout();
+
 }
 
 void Check_if_overturn(void){
@@ -820,6 +820,9 @@ void StartControlTask(void *argument)
       &xLastWakeTime,
       pdMS_TO_TICKS(10)
     );
+    // 조종 송신기 <-> 조종 수신기 간의 타임아웃 확인
+    iBus_Check_Timeout();
+
     // 전복되어 있지 않고, fail-safe 가 없으면 모터 제어
     Check_failflag();
 
