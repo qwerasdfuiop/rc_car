@@ -732,17 +732,26 @@ void Motor_Control(unsigned short go_back, unsigned short left_right) {
 }
 
 void Check_failflag(void){
-	  if((sigfail_flag | overturn_flag) == 0)
-	  {
-		  Motor_Control(iBus.LV, iBus.LH);
-		  HAL_GPIO_WritePin(GPIOC, RED_LED_Pin, GPIO_PIN_RESET);
-	  }
-	  else // 모터 정지, 적색 led 켜짐
-	  {
-		  TIM1->CCR1 = 0;
-		  TIM1->CCR2 = 0;
-		  HAL_GPIO_WritePin(GPIOC, RED_LED_Pin, GPIO_PIN_SET);
-	  }
+
+  unsigned short go_back;
+  unsigned short left_right;
+
+  if((sigfail_flag | overturn_flag) == 0)
+  {
+    taskENTER_CRITICAL();
+    go_back = iBus.LV;
+    left_right = iBus.LH;  
+    taskEXIT_CRITICAL();
+
+    Motor_Control(go_back, left_right);
+    HAL_GPIO_WritePin(GPIOC, RED_LED_Pin, GPIO_PIN_RESET);
+  }
+  else // 모터 정지, 적색 led 켜짐
+  {
+    TIM1->CCR1 = 0;
+    TIM1->CCR2 = 0;
+    HAL_GPIO_WritePin(GPIOC, RED_LED_Pin, GPIO_PIN_SET);
+  }
 
 }
 
@@ -751,10 +760,16 @@ void Check_sigrx_cplt(uint8_t *rxFrame){
   // 조종기 신호 32바이트의 체크섬 확인
   if(iBus_Check_CHKSUM(&rxFrame[0], 32) == 1)
   {
-    // 조종기 신호 32바이트를 파싱
-    iBus_Parsing(&rxFrame[0], &iBus);
+    FSiA6B_iBus parsed = {0};
     // 마지막 정상 프레임 수신 시각 기록
     last_ibus_rx_tick = HAL_GetTick();
+    // 조종기 신호 32바이트를 파싱
+    iBus_Parsing(rxFrame, &parsed);
+
+    taskENTER_CRITICAL();
+    iBus = parsed;
+    taskEXIT_CRITICAL();
+
     // 조종 송신기 <-> 조종 수신기 간의 fail 정보 확인
     if(iBus_isActiveFailsafe(&iBus) == 1)
     {
