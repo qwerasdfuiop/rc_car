@@ -41,7 +41,6 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN PV */
-uint8_t usart1_rx_flag = 0;
 uint8_t usart1_rx_data = 0;
 
 uint8_t usart2_rx_flag = 0;
@@ -179,7 +178,6 @@ void USART1_IRQHandler(void)
 	{
 		LL_USART_ClearFlag_RXNE(USART1);
 		usart1_rx_data = LL_USART_ReceiveData8(USART1);
-		usart1_rx_flag = 1;
 
 		switch(cnt)
 		{

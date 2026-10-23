@@ -82,6 +82,11 @@ const osThreadAttr_t DisplayTask_attributes = {
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityLow,
 };
+/* Definitions for iBusRxQueue */
+osMessageQueueId_t iBusRxQueueHandle;
+const osMessageQueueAttr_t iBusRxQueue_attributes = {
+  .name = "iBusRxQueue"
+};
 /* USER CODE BEGIN PV */
 // 조종기 통신 타임아웃 타이머
 uint32_t last_ibus_rx_tick = 0;
@@ -198,6 +203,10 @@ int main(void)
   /* USER CODE BEGIN RTOS_TIMERS */
   /* start timers, add new ones, ... */
   /* USER CODE END RTOS_TIMERS */
+
+  /* Create the queue(s) */
+  /* creation of iBusRxQueue */
+  iBusRxQueueHandle = osMessageQueueNew (3, sizeof(uint32_t), &iBusRxQueue_attributes);
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
