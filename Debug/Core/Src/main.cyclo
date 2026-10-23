@@ -40,5 +40,5 @@
 ../Core/Src/main.c:885:6:StartReceiverTask	1
 ../Core/Src/main.c:903:6:StartOverturnTask	1
 ../Core/Src/main.c:921:6:StartDisplayTask	1
-../Core/Src/main.c:954:6:HAL_TIM_PeriodElapsedCallback	2
-../Core/Src/main.c:972:6:Error_Handler	1
+../Core/Src/main.c:956:6:HAL_TIM_PeriodElapsedCallback	2
+../Core/Src/main.c:974:6:Error_Handler	1

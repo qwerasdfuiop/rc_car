@@ -926,10 +926,12 @@ void StartDisplayTask(void *argument)
   float batVolt;
   // 표시할 배터리 레벨
   uint8_t batLevel;
-  vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(200));
+  
   /* Infinite loop */
   for(;;)
   {
+    //200ms 제어 주기
+    vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(200));
     // 전압을 ADC로 읽음
     uint16_t tempVolt = adcVal & 0xFFF;
     // ADC로부터 전압을 계산
