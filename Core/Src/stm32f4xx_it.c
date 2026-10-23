@@ -49,9 +49,6 @@ uint8_t usart2_rx_data = 0;
 
 uint8_t ibus_rx_buf[32];
 uint8_t ibus_rx_cplt_flag = 0;
-
-uint8_t tim3_1000ms_flag = 0;
-uint8_t tim3_100ms_flag = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -169,40 +166,6 @@ void DebugMon_Handler(void)
 /* For the available peripheral interrupt handler names,                      */
 /* please refer to the startup file (startup_stm32f4xx.s).                    */
 /******************************************************************************/
-
-/**
-  * @brief This function handles TIM3 global interrupt.
-  */
-void TIM3_IRQHandler(void)
-{
-  /* USER CODE BEGIN TIM3_IRQn 0 */
-	static unsigned short tim3_1000ms_count = 0;
-	static unsigned short tim3_100ms_count = 0;
-	if(LL_TIM_IsActiveFlag_UPDATE(TIM3))
-	{
-		LL_TIM_ClearFlag_UPDATE(TIM3);
-
-		tim3_1000ms_count++;
-		if(tim3_1000ms_count == 1000)
-		{
-			tim3_1000ms_count = 0;
-			tim3_1000ms_flag = 1;
-		}
-
-		tim3_100ms_count++;
-		if(tim3_100ms_count == 100)
-		{
-			tim3_100ms_count = 0;
-			tim3_100ms_flag = 1;
-		}
-
-	}
-
-  /* USER CODE END TIM3_IRQn 0 */
-  /* USER CODE BEGIN TIM3_IRQn 1 */
-
-  /* USER CODE END TIM3_IRQn 1 */
-}
 
 /**
   * @brief This function handles USART1 global interrupt.

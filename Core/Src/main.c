@@ -103,7 +103,6 @@ static void MX_USART1_UART_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_I2C1_Init(void);
-static void MX_TIM3_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_SPI1_Init(void);
 void StartControlTask(void *argument);
@@ -160,7 +159,6 @@ int main(void)
   MX_USART2_UART_Init();
   MX_TIM1_Init();
   MX_I2C1_Init();
-  MX_TIM3_Init();
   MX_ADC1_Init();
   MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
@@ -172,9 +170,6 @@ int main(void)
   LL_TIM_CC_EnableChannel(TIM1, LL_TIM_CHANNEL_CH2);
 
   LL_TIM_EnableAllOutputs(TIM1);
-
-  LL_TIM_EnableCounter(TIM3);
-  LL_TIM_EnableIT_UPDATE(TIM3);
 
   LL_GPIO_SetOutputPin(GPIOC, STBY_Pin);
 
@@ -493,45 +488,6 @@ static void MX_TIM1_Init(void)
 }
 
 /**
-  * @brief TIM3 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_TIM3_Init(void)
-{
-
-  /* USER CODE BEGIN TIM3_Init 0 */
-
-  /* USER CODE END TIM3_Init 0 */
-
-  LL_TIM_InitTypeDef TIM_InitStruct = {0};
-
-  /* Peripheral clock enable */
-  LL_APB1_GRP1_EnableClock(LL_APB1_GRP1_PERIPH_TIM3);
-
-  /* TIM3 interrupt Init */
-  NVIC_SetPriority(TIM3_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(),5, 0));
-  NVIC_EnableIRQ(TIM3_IRQn);
-
-  /* USER CODE BEGIN TIM3_Init 1 */
-
-  /* USER CODE END TIM3_Init 1 */
-  TIM_InitStruct.Prescaler = 41999;
-  TIM_InitStruct.CounterMode = LL_TIM_COUNTERMODE_UP;
-  TIM_InitStruct.Autoreload = 1;
-  TIM_InitStruct.ClockDivision = LL_TIM_CLOCKDIVISION_DIV1;
-  LL_TIM_Init(TIM3, &TIM_InitStruct);
-  LL_TIM_EnableARRPreload(TIM3);
-  LL_TIM_SetClockSource(TIM3, LL_TIM_CLOCKSOURCE_INTERNAL);
-  LL_TIM_SetTriggerOutput(TIM3, LL_TIM_TRGO_RESET);
-  LL_TIM_DisableMasterSlaveMode(TIM3);
-  /* USER CODE BEGIN TIM3_Init 2 */
-
-  /* USER CODE END TIM3_Init 2 */
-
-}
-
-/**
   * @brief USART1 Initialization Function
   * @param None
   * @retval None
@@ -815,34 +771,31 @@ void Check_sigrx_cplt(void){
 }
 
 void Check_if_overturn(void){
-	if(tim3_100ms_flag == 1)
-	{
-		tim3_100ms_flag = 0;
-		// 자이로 센서로부터 가속도 값을 읽음
-		MPU6050_Read_Accel();
-		// z축 가속도 값이 음수면 전복되었다고 판단
-		if(Az < 0)
-		{
-			// 전복되었다고 판단한 횟수가 4회 미만이면 전복 횟수 증가
-			if(overturn_cnt < 4)
-			{
-				overturn_cnt++;
-			}
-			// 전복되었다고 판단한 횟수가 4회 이상이면 전복 되었음을 확정하는 플래그 설정
-			else
-			{
-				overturn_flag = 1;
-				overturn_cnt = 0;
-			}
-		}
-		else // 조이스틱을 좌/우로 조작하면 overturn_flag 초기화
-		{
-			if(iBus.RH < 1400 || iBus.RH > 1600)
-			{
-				overturn_flag = 0;
-			}
-		}
-	}
+
+  // 자이로 센서로부터 가속도 값을 읽음
+  MPU6050_Read_Accel();
+  // z축 가속도 값이 음수면 전복되었다고 판단
+  if(Az < 0)
+  {
+    // 전복되었다고 판단한 횟수가 4회 미만이면 전복 횟수 증가
+    if(overturn_cnt < 4)
+    {
+      overturn_cnt++;
+    }
+    // 전복되었다고 판단한 횟수가 4회 이상이면 전복 되었음을 확정하는 플래그 설정
+    else
+    {
+      overturn_flag = 1;
+      overturn_cnt = 0;
+    }
+  }
+  else // 조이스틱을 좌/우로 조작하면 overturn_flag 초기화
+  {
+    if(iBus.RH < 1400 || iBus.RH > 1600)
+    {
+      overturn_flag = 0;
+    }
+  }
 }
 
 
@@ -873,9 +826,6 @@ void StartControlTask(void *argument)
 
     // ibus_rx_cplt_flag 가 1이면 조종기 신호 32바이트를 수신했음을 확인
     Check_sigrx_cplt();
-
-    //100ms마다 차량이 전복되어 있는지 확인
-    Check_if_overturn();
   }
   /* USER CODE END 5 */
 }
@@ -908,10 +858,16 @@ void StartReceiverTask(void *argument)
 void StartOverturnTask(void *argument)
 {
   /* USER CODE BEGIN StartOverturnTask */
+  TickType_t xLastWakeTime = xTaskGetTickCount();
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1);
+    vTaskDelayUntil(
+      &xLastWakeTime,
+      pdMS_TO_TICKS(100)
+    );
+    
+    Check_if_overturn();
   }
   /* USER CODE END StartOverturnTask */
 }
