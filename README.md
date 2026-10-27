@@ -1,169 +1,188 @@
-# STM32F4 RC Car
+# STM32F446RE RC Car
 
-> **STM32F446RE 기반 무선 조종 RC카**  
-> UART 인터럽트로 조종기 데이터를 수신하고, PWM으로 DC 모터를 제어하는 개인 임베디드 프로젝트입니다. 수신 장애 및 전복 상황에 대응하는 모터 정지 로직과 배터리 상태 표시 기능을 구현했습니다.
+> STM32F446RE 기반 무선 조종 RC카를 제작하고, 슈퍼루프 구조를 FreeRTOS 태스크 구조로 확장한 개인 임베디드 프로젝트입니다.
 
-**개발 환경:** `C` · `STM32F446RE` · `STM32CubeIDE` · `STM32 HAL / LL`  
-**주요 인터페이스:** `UART` · `TIM/PWM` · `I2C` · `ADC/DMA` · `SPI`  
-**실행 구조:** Bare-metal / Super-loop (`main` 브랜치 기준)
+`C` · `STM32F446RE` · `STM32CubeIDE` · `HAL / LL` · `FreeRTOS` · `CMSIS-RTOS2`
 
-[소스 코드](./Core/Src) · [STM32CubeMX 설정 파일](./test.ioc) · [기존 프로젝트 포트폴리오 PDF](./Project_Portfolio.pdf)
+무선 조종 데이터 수신, 좌·우 DC 모터 제어, 통신 장애·전복 감지, 배터리 전압 표시를 하나의 MCU에서 구현했습니다. 주변장치 통합과 데이터시트 기반 MAX7219 드라이버 작성, 인터럽트와 태스크 사이의 데이터 전달에 중점을 두었습니다.
 
-## 1. 프로젝트 개요
+## 브랜치 안내
 
-조종기, 모터 드라이버, 관성 센서, 배터리 측정 회로 등을 STM32 MCU에 연결해 동작하는 RC카를 제작했습니다. 부품 선정부터 하드웨어 결선, MCU 주변장치 설정, 제어 로직 작성, UART 기반 디버깅까지 진행하며 **하드웨어와 펌웨어가 연동되는 과정을 학습**하는 데 중점을 두었습니다.
-
-### 주요 기능
-
-| 기능 | 구현 내용 | 주요 기술 |
+| 브랜치 | 실행 구조 | 주요 내용 |
 | --- | --- | --- |
-| 무선 조종 데이터 수신 | FS-iA6B 수신기의 32바이트 iBus 프레임을 인터럽트로 수집·검증·파싱 | USART1, RXNE interrupt |
-| 모터 구동 및 조향 | 조종기 스틱 값을 좌·우 모터 속도 및 회전 방향으로 변환 | TIM1 PWM, GPIO |
-| 통신 장애 대응 | iBus의 Failsafe 상태 및 일정 시간 동안의 수신 여부를 확인해 PWM 출력 차단 | TIM3 interrupt, timeout |
-| 전복 감지 | MPU6050 가속도 Z축 값을 주기적으로 확인해 전복 상태 감지 후 모터 정지 | I2C1, TIM3 |
-| 배터리 전압 측정 | 전압 분배 회로 출력을 ADC로 측정하고 DMA로 값을 갱신 | ADC1, DMA2 |
-| 배터리 상태 표시 | 측정값을 단계로 변환해 MAX7219 기반 8×8 LED 매트릭스에 표시하는 코드 추가 | SPI1, GPIO CS |
-| 시리얼 디버깅 | PC 터미널 연결용 USART2 수신 에코 및 센서 값 확인 코드 | USART2 |
+| [main](https://github.com/qwerasdfuiop/rc_car/tree/main) | 인터럽트 + 슈퍼루프 | 기본 주행·보호 로직, 배터리 전압 표시 |
+| [freertos](https://github.com/qwerasdfuiop/rc_car/tree/freertos) | FreeRTOS + CMSIS-RTOS2 | 4개 태스크 분리, iBus 수신 큐, 주기별 실행 및 공유 데이터 보호 |
 
-> **구현 상태:** 표는 현재 `main` 브랜치에 포함된 기능을 기준으로 작성했습니다. MAX7219 표시는 코드가 반영되어 있으나, 최종 하드웨어 동작 확인 여부는 별도로 검증할 필요가 있습니다. RTOS는 현재 `main` 브랜치에 적용되어 있지 않습니다.
+**FreeRTOS 구현은 `freertos` 브랜치에서 확인할 수 있습니다.** 아래 태스크 및 큐 설명도 해당 브랜치를 기준으로 합니다.
 
-## 2. 시스템 구성
+## 1. 주요 기능
 
-```mermaid
-flowchart LR
-    RX[FS-iA6B 수신기] -->|iBus / UART1| MCU[STM32F446RE]
-    IMU[MPU6050] <-->|I2C1| MCU
-    BAT[배터리 + 전압 분배 회로] -->|ADC1 / DMA2| MCU
-    MCU -->|TIM1 PWM + GPIO| DRIVER[듀얼 H-브리지 모터 드라이버]
-    DRIVER --> LEFT[좌측 DC 모터]
-    DRIVER --> RIGHT[우측 DC 모터]
-    MCU -->|SPI1 + CS| LED[MAX7219 + 8×8 LED 매트릭스]
-    MCU <-->|USART2| PC[PC 시리얼 터미널]
-```
+| 기능 | 구현 내용 | 주변장치 / 기술 |
+| --- | --- | --- |
+| 무선 조종 수신 | FS-iA6B의 32바이트 iBus 프레임 수집, 체크섬 검사, 채널 파싱 | USART1, RXNE 인터럽트 |
+| 주행 및 차동 조향 | 스틱 입력을 좌·우 모터 출력으로 변환하고 회전 방향·PWM 제어 | TIM1 CH1/CH2, GPIO |
+| 통신 장애 대응 | 마지막 정상 프레임 처리 후 100 ms 이상 경과하거나 수신 데이터의 Failsafe 판정 시 PWM 차단 | HAL tick, 상태 플래그 |
+| 전복 감지 | MPU6050의 Z축 가속도 부호를 반복 확인해 전복 상태 설정 | I2C1 |
+| 배터리 전압 측정 | 분압 회로 출력을 12비트 ADC로 변환하고 DMA로 갱신 | ADC1, DMA2 |
+| 배터리 상태 표시 | 전압을 단계로 환산해 MAX7219 LED 매트릭스에 표시 | SPI1, GPIO LOAD |
+| 시리얼 디버깅 | PC 터미널 연결 및 수신 에코 | USART2 |
 
-### 하드웨어 및 개발 환경
+## 2. 하드웨어 구성
 
-| 구분 | 항목 |
+| 구분 | 구성 |
 | --- | --- |
-| MCU | STM32F446RE (Nucleo-F446RE) |
-| 무선 수신 | FlySky FS-iA6B / iBus |
-| 모터 제어 | 좌·우 DC 모터, PWM 및 방향 제어용 모터 드라이버 |
-| 관성 센서 | MPU6050 (I2C) |
-| 배터리 측정 | 전압 분배 회로 + STM32 ADC |
-| LED 표시 | MAX7219 + 1088AS 계열 8×8 LED 매트릭스 |
-| 개발 도구 | STM32CubeIDE, STM32CubeMX 설정(`test.ioc`) |
-| 라이브러리 | STM32 HAL 및 LL 혼용 |
-
-## 3. 주요 구현 내용
-
-### 3.1 UART 인터럽트 기반 iBus 수신
-
-- USART1을 **115,200 bps**로 설정하고 RXNE 인터럽트에서 데이터를 바이트 단위로 수신합니다.
-- 프레임 시작 바이트 `0x20`, `0x40`을 확인하고 총 **32바이트**를 수신 버퍼에 저장합니다.
-- 메인 루프에서 수신 완료 플래그를 확인한 뒤, iBus 체크섬을 검증하고 스틱 채널 값을 추출합니다.
-- 인터럽트에서는 바이트 수집을 처리하고, 프레임 검증 및 모터 제어는 메인 루프에서 수행하도록 분리했습니다.
-
-**코드:** [`USART1_IRQHandler()`](./Core/Src/stm32f4xx_it.c) · [`iBus_Check_CHKSUM()` / `iBus_Parsing()`](./Core/Src/FS-iA6B.c)
-
-### 3.2 PWM 기반 차동 조향
-
-조종기 스틱 입력의 중심값(약 `1500`)을 기준으로 전진·후진 입력과 좌·우 조향 입력을 구분합니다.
-
-```c
-int16_t throttle = go_back - 1500;
-int16_t steer    = left_right - 1500;
-
-int16_t left_motor  = throttle - steer;
-int16_t right_motor = throttle + steer;
-```
-
-- 좌·우 모터 출력의 부호로 회전 방향 GPIO를 결정합니다.
-- 출력의 절댓값을 TIM1의 PWM 비교 레지스터(`CCR1`, `CCR2`)에 반영합니다.
-- TIM1 CH1/CH2가 각각 좌·우 모터 PWM을 담당합니다. 현재 설정은 **약 4 kHz PWM**입니다(타이머 클록 168 MHz, ARR=41999).
-
-**코드:** [`Motor_Control()`](./Core/Src/main.c)
-
-### 3.3 Failsafe 및 전복 감지
-
-**무선 수신 장애 대응**
-
-- iBus 데이터에 포함된 Failsafe 정보를 확인합니다.
-- TIM3 주기 인터럽트로 1초 주기의 검사 플래그를 만들고, 해당 구간에 정상 파싱된 iBus 프레임이 없으면 수신 장애로 판단합니다.
-- 장애가 감지되면 TIM1의 좌·우 PWM 비교값을 `0`으로 설정하고 경고 LED를 켭니다.
-
-**전복 감지**
-
-- TIM3에서 생성한 100 ms 플래그에 따라 MPU6050의 가속도 값을 읽습니다.
-- Z축 가속도가 음수인 상태가 반복되는지를 확인해 전복 플래그를 설정합니다.
-- 전복으로 판단되면 PWM을 0으로 설정하여 모터 구동을 정지합니다.
-
-**코드:** [`TIM3_IRQHandler()`](./Core/Src/stm32f4xx_it.c) · [`main()`](./Core/Src/main.c)
-
-### 3.4 ADC + DMA 배터리 측정 및 SPI 표시
-
-- ADC1의 **12비트 변환값**을 DMA2 Stream0의 순환 모드로 수신합니다.
-- 전압 분배 비율을 반영한 코드 내 환산 계수로 배터리 전압을 계산합니다.
-- 계산한 전압을 8.4 V 기준의 단계 값으로 변환해 MAX7219의 표시 데이터로 전달합니다.
-- MAX7219에는 SPI1으로 주소·데이터 2바이트를 전송하고 GPIO로 CS(LOAD)를 제어합니다.
-
-**코드:** [`main()`](./Core/Src/main.c) · [`max7219_send()` / `display_voltage_level()`](./Core/Src/max7219.c)
-
-> 현재 배터리 잔량 표시는 **전압 기반 단계 표시**이며, 실제 잔여 용량(SoC)을 정밀 추정하는 기능은 아닙니다.
-
-## 4. 소프트웨어 구조
-
-현재 애플리케이션은 **인터럽트 + Super-loop** 구조입니다.
+| MCU 보드 | Nucleo-F446RE / ARM Cortex-M4 |
+| 무선 수신기 | FlySky FS-iA6B |
+| 구동부 | 좌·우 DC 모터 및 듀얼 H-브리지 모터 드라이버 |
+| 관성 센서 | MPU6050 |
+| 표시 장치 | MAX7219 + 1088AS 계열 8×8 LED 매트릭스 |
+| 전압 측정 | 저항 분압 회로 + ADC 입력 |
+| 개발 도구 | STM32CubeIDE, STM32CubeMX, ST-LINK |
 
 ```mermaid
 flowchart TD
-    ISR1[USART1 RX 인터럽트] --> BUF[iBus 프레임 수집 / 수신 완료 플래그]
-    ISR2[TIM3 업데이트 인터럽트] --> TICK[100 ms / 1 s 검사 플래그]
-    BUF --> LOOP[main while 루프]
-    TICK --> LOOP
-    ADC[ADC1 + DMA 순환 갱신] --> LOOP
-    LOOP --> PARSE[체크섬 검증 / 채널 파싱]
-    LOOP --> SAFE[수신 장애 / 전복 상태 판단]
-    LOOP --> VOLT[배터리 전압 환산 / LED 표시]
-    PARSE --> PWM[모터 방향 및 PWM 제어]
-    SAFE --> PWM
+    RX["FS-iA6B"] -->|"iBus / USART1"| MCU["STM32F446RE"]
+    IMU["MPU6050"] <-->|"I2C1"| MCU
+    BAT["배터리 분압 회로"] -->|"ADC1 + DMA"| MCU
+    MCU -->|"PWM + GPIO"| MOTOR["모터 드라이버 / 좌·우 DC 모터"]
+    MCU -->|"SPI1 + LOAD"| LED["MAX7219 / LED 매트릭스"]
+    MCU <-->|"USART2"| PC["PC 터미널"]
 ```
 
-| 경로 | 역할 |
+핀 배치와 주변장치 설정은 사용할 브랜치의 `test.ioc`에서 확인할 수 있습니다.
+
+## 3. FreeRTOS 소프트웨어 구조
+
+### 태스크 구성
+
+| 태스크 | 우선순위 | 실행 조건 | 역할 |
+| --- | --- | --- | --- |
+| `ControlTask` | High | 10 ms 주기 | 통신 타임아웃 검사, 보호 상태에 따른 모터 제어 |
+| `ReceiverTask` | AboveNormal | 수신 큐 대기 | 체크섬 검사, 채널 파싱, 수신 시각·Failsafe 상태 갱신 |
+| `OverturnTask` | Normal | 100 ms 주기 | 가속도 읽기 및 전복 상태 갱신 |
+| `DisplayTask` | Low | 200 ms 주기 | ADC 값의 전압 환산 및 LED 표시 |
+
+주기 태스크는 `vTaskDelayUntil()`을 사용합니다. 수신 태스크는 `osMessageQueueGet(..., osWaitForever)`로 프레임이 도착할 때까지 대기합니다. 표의 주기는 코드의 설정값이며, 실제 실행 지연을 측정한 결과는 아닙니다.
+
+### iBus 프레임 전달
+
+```mermaid
+flowchart TD
+    ISR["USART1 RX 인터럽트"] -->|"32바이트 프레임 복사"| Q["iBusRxQueue / 3개 프레임"]
+    Q --> RX["ReceiverTask / 검증·파싱"]
+    RX --> STATE["조종 입력 / 수신 시각 / Failsafe 상태"]
+    STATE --> CTRL["ControlTask"]
+    IMU["OverturnTask / 전복 상태"] --> CTRL
+    CTRL --> OUT["모터 PWM / 방향 / 경고 LED"]
+```
+
+- ISR은 바이트 수집과 프레임 큐 전달을 담당하고, 체크섬 검사와 파싱은 수신 태스크에서 처리합니다.
+- 큐는 **32바이트 메시지 3개**를 저장하며, ISR에서는 대기 시간 `0`으로 전송합니다.
+- 프레임을 큐에 복사해 ISR 수신 버퍼와 태스크 처리 데이터를 분리했습니다.
+- 파싱된 `iBus` 구조체의 대입과 제어 태스크의 채널 값 읽기에 임계구역을 적용했습니다.
+
+**코드:** [태스크·제어 로직](https://github.com/qwerasdfuiop/rc_car/blob/freertos/Core/Src/main.c) · [UART ISR](https://github.com/qwerasdfuiop/rc_car/blob/freertos/Core/Src/stm32f4xx_it.c)
+
+### 슈퍼루프에서 변경한 점
+
+| 항목 | 슈퍼루프 (`main`) | FreeRTOS (`freertos`) |
+| --- | --- | --- |
+| 기능 실행 | 하나의 메인 루프에서 순차 처리 | 제어·수신·센서·표시 태스크로 분리 |
+| 주기 관리 | TIM3 검사 플래그와 루프 실행 흐름 | 태스크별 `vTaskDelayUntil()` |
+| 프레임 전달 | 공유 수신 버퍼와 완료 플래그 | 메시지 큐를 통한 프레임 복사 |
+| 수신 대기 | 루프에서 완료 플래그 확인 | 큐에서 블로킹 대기 |
+| 실행 우선순위 | 루프 내 호출 순서에 의존 | 모터 제어와 수신에 높은 우선순위 부여 |
+
+센서 읽기와 표시 작업을 각각의 태스크로 분리해 기능별 실행 주기와 우선순위를 명시했습니다. 다만 I2C·SPI 전송 자체는 블로킹 API를 사용하며, RTOS 적용에 따른 응답시간 개선 수치는 아직 측정하지 않았습니다.
+
+## 4. 주요 구현
+
+### PWM 기반 차동 조향
+
+스틱 중심값 `1500`을 기준으로 전후진 입력과 조향 입력을 계산합니다.
+
+```c
+int16_t throttle = go_back - 1500;
+int16_t steer = left_right - 1500;
+
+int16_t left_motor = throttle - steer;
+int16_t right_motor = throttle + steer;
+```
+
+각 출력의 부호로 모터 방향 GPIO를 설정하고, 절댓값을 TIM1의 `CCR1`·`CCR2`에 반영합니다. 현재 코드는 좌·우 모터의 속도 차이를 이용하는 차동 조향 방식입니다.
+
+### 통신 장애 및 전복 시 모터 정지
+
+- 체크섬이 정상인 프레임을 처리할 때 `last_ibus_rx_tick`을 갱신합니다.
+- `ControlTask`가 10 ms마다 경과 시간을 확인하고, **100 ms 이상**이면 `sigfail_flag`를 설정합니다.
+- 수신 데이터에서 추출한 Failsafe 값도 정지 판단에 사용합니다.
+- `sigfail_flag` 또는 `overturn_flag`가 설정되면 좌·우 PWM 비교값을 `0`으로 만들고 적색 LED를 켭니다.
+- 전복 판정은 100 ms마다 읽은 `Az < 0` 조건이 연속 5회 성립하면 설정합니다. 정상 방향으로 돌아온 뒤 `RH` 채널이 `1400~1600` 범위를 벗어나면 전복 플래그를 해제합니다.
+
+통신 장애는 정상 프레임 처리 결과에 따라 해제되며, 전복 상태는 위의 별도 해제 조건을 사용합니다.
+
+**코드:** [타임아웃·파싱](https://github.com/qwerasdfuiop/rc_car/blob/freertos/Core/Src/FS-iA6B.c) · [모터 제어·전복 판정](https://github.com/qwerasdfuiop/rc_car/blob/freertos/Core/Src/main.c)
+
+### MAX7219 드라이버 및 배터리 표시
+
+MAX7219 레지스터 설정과 주소·데이터 전송 함수를 작성했습니다.
+
+| 레지스터 | 주소 | 설정값 | 의미 |
+| --- | --- | --- | --- |
+| Display Test | `0x0F` | `0x00` | 테스트 모드 해제 |
+| Shutdown | `0x0C` | `0x01` | 정상 동작 |
+| Scan Limit | `0x0B` | `0x07` | DIG0~DIG7 스캔 |
+| Intensity | `0x0A` | `0x08` | 밝기 설정 |
+| Decode Mode | `0x09` | `0x00` | 숫자 디코딩 없이 비트 패턴 사용 |
+
+SPI로 주소와 데이터 총 2바이트를 전송하고, GPIO로 LOAD를 LOW → HIGH 전환합니다. 초기화 시 8개 표시 레지스터를 지운 뒤, 배터리 단계에 해당하는 패턴을 주소 `4`·`5`에 기록합니다.
+
+ADC 값은 코드의 환산 계수 `0.002417f`로 전압으로 변환합니다. `freertos`의 단계 계산은 현재 `7.4 V`를 기준으로 하고 상한을 8단계로 제한합니다. 이 값은 현재 구현의 환산 기준이며, 배터리 완충 전압이나 정밀한 잔여 용량 추정값을 의미하지 않습니다.
+
+**코드:** [MAX7219 드라이버](https://github.com/qwerasdfuiop/rc_car/blob/freertos/Core/Src/max7219.c)
+
+## 5. 소스 코드 안내
+
+| 파일 | 역할 |
 | --- | --- |
-| [`Core/Src/main.c`](./Core/Src/main.c) | 초기화, 메인 제어 루프, 모터 제어, Failsafe 처리, 전압 계산 |
-| [`Core/Src/stm32f4xx_it.c`](./Core/Src/stm32f4xx_it.c) | USART1/2, TIM3, DMA 인터럽트 핸들러 |
-| [`Core/Src/FS-iA6B.c`](./Core/Src/FS-iA6B.c) | iBus 체크섬 검사 및 채널 데이터 파싱 |
-| [`Core/Src/MPU6050.c`](./Core/Src/MPU6050.c) | MPU6050 초기화 및 가속도/자이로 센서 데이터 읽기 |
-| [`Core/Src/max7219.c`](./Core/Src/max7219.c) | MAX7219 명령 전송 및 LED 매트릭스 표시 |
-| [`test.ioc`](./test.ioc) | MCU 핀 배치 및 주변장치 설정 |
+| `Core/Src/main.c` | 초기화, 모터 제어, 보호 로직, 전압 환산. FreeRTOS 브랜치에서는 태스크·큐 생성 및 태스크 본문 포함 |
+| `Core/Src/stm32f4xx_it.c` | UART 및 DMA 등의 인터럽트 처리 |
+| `Core/Src/FS-iA6B.c` | iBus 체크섬, 채널 파싱, 통신 타임아웃 |
+| `Core/Src/MPU6050.c` | 센서 초기화 및 데이터 읽기 |
+| `Core/Src/max7219.c` | MAX7219 초기화, SPI 전송, 표시 패턴 |
+| `Core/Inc/FreeRTOSConfig.h` | FreeRTOS 커널 설정 (`freertos` 브랜치) |
+| `test.ioc` | STM32CubeMX 핀·주변장치·미들웨어 설정 |
 
-USART1/2와 TIM1/3은 **LL API 중심**, I2C1·ADC1·DMA·SPI1은 **HAL API 중심**으로 구성했습니다. MPU6050 모듈 등은 기존 드라이버 코드를 참고/활용했고, 주변장치 연결 및 RC카의 제어·보호 로직을 프로젝트에 맞게 구성했습니다.
+[main 소스](https://github.com/qwerasdfuiop/rc_car/tree/main/Core/Src) · [FreeRTOS 소스](https://github.com/qwerasdfuiop/rc_car/tree/freertos/Core/Src)
 
-## 5. 개발 및 디버깅 경험
+## 6. 빌드 및 실행
 
-- **UART 디버깅:** USART2와 PC 터미널을 이용해 수신 데이터를 확인하며 조종 입력과 펌웨어 동작을 점검했습니다.
-- **하드웨어 점검:** 보드/전원 이상 상황에서 멀티미터로 배터리 및 MCU 핀 전압을 측정하는 방식으로 문제 범위를 좁혔습니다.
-- **모듈 통합:** 무선 수신기, 모터 드라이버, IMU, 전압 측정 회로 등 서로 다른 인터페이스의 부품을 하나의 MCU 시스템으로 통합했습니다.
+1. 저장소를 복제하고 원하는 실행 구조의 브랜치를 선택합니다.
 
-## 6. 실행 및 빌드
+   ```bash
+   git clone https://github.com/qwerasdfuiop/rc_car.git
+   cd rc_car
+   git switch freertos
+   ```
 
-1. STM32CubeIDE에서 이 저장소의 STM32 프로젝트를 가져옵니다.
-2. [`test.ioc`](./test.ioc)에서 MCU 및 핀 설정을 확인합니다.
-3. 실제 회로에 맞춰 FS-iA6B, 모터 드라이버, MPU6050, 전압 분배 회로, MAX7219를 연결합니다.
-4. 프로젝트를 빌드하고 ST-LINK로 STM32F446RE에 다운로드합니다.
-5. **처음에는 모터 구동 전원을 분리한 상태에서** UART 수신 및 주변장치 동작을 확인한 후, 안전한 조건에서 구동을 시험합니다.
+   슈퍼루프 버전은 `git switch main`으로 선택합니다.
 
-> 배선도/전원 구성이 사용자 환경에 따라 달라질 수 있습니다. 특히 MCU 입력 핀에 배터리 전압을 직접 연결하지 않도록 주의해야 합니다.
+2. STM32CubeIDE에서 **File → Import → General → Existing Projects into Workspace**로 프로젝트를 가져옵니다.
+3. 선택한 브랜치의 `test.ioc`를 확인하고 실제 배선을 핀 설정에 맞춥니다.
+4. 프로젝트를 빌드한 뒤 ST-LINK로 보드에 다운로드합니다.
+5. 수신·센서·표시 동작을 확인하고 주행, 수신 끊김, 전복 및 복구 조건을 점검합니다.
 
-## 7. 개선 계획
+## 7. 개발 과정과 개선할 점
 
-- [ ] MAX7219 표시 기능의 실제 하드웨어 동작 확인 및 표시 범위 보정
-- [ ] 인터럽트와 메인 루프 사이에서 공유하는 데이터/플래그의 동기화 및 수신 버퍼 처리 개선
-- [ ] 블로킹 I2C 센서 읽기의 비동기화 검토
-- [ ] 수신 끊김·전복·배터리 저전압 조건의 테스트 절차와 결과 기록
-- [ ] 필요 시 FreeRTOS 기반 태스크 구조로 리팩터링
-- [ ] 배선도, 실물 사진 및 시연 영상 추가
+슈퍼루프 기반으로 주변장치와 주행 기능을 통합한 뒤, FreeRTOS를 적용하면서 기능별 태스크 분리, 큐 기반 프레임 전달, 공유 구조체 보호를 구현했습니다. MAX7219는 데이터시트를 바탕으로 초기화 및 표시 함수를 작성했으며, 하드웨어 문제를 점검할 때는 PC 시리얼 터미널과 멀티미터를 활용했습니다.
 
----
+앞으로 보완할 항목은 다음과 같습니다.
 
-**참고:** 이 README는 공개 저장소의 `main` 브랜치 코드를 기준으로 작성했습니다. 사진·시연 영상, 모든 기능의 실기 검증 결과는 아직 README에 포함하지 않았습니다.
+- [ ] 큐 포화 시 프레임 유실 횟수 기록 및 처리 정책 정리
+- [ ] 공유 상태 플래그와 전복 해제용 채널 읽기의 동기화 검토
+- [ ] 모터 혼합 출력의 범위 제한 및 스틱 중립 구간 적용
+- [ ] 배터리 전압 환산·표시 단계 보정
+- [ ] 태스크 실행시간·스택 사용량·장애 감지 후 정지 지연 측정
+- [ ] 배선도, 실물 사진, 주행·보호 동작 영상 및 시험 결과 추가
+
+> 구현 설명은 저장소 코드 기준입니다. 실행 주기와 임계값은 설정값이며, 실측 성능이나 모든 장애 조건에 대한 검증을 의미하지 않습니다.
